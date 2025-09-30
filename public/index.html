@@ -28,6 +28,9 @@
           notifyButton: {
             enable: false,
           },
+          welcomeNotification: {
+            disable: true,
+          },
         });
 
         try {
@@ -94,107 +97,6 @@
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
-    <!-- Simple notifications permission popup -->
-    <div id="notify-popup" style="display:none; position: fixed; inset: 0; z-index: 9999; align-items: center; justify-content: center; background: rgba(0,0,0,0.4);">
-      <div style="max-width: 420px; width: calc(100% - 2rem); margin: 0 1rem; background: #111827; color: #f9fafb; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.35); overflow: hidden;">
-        <div id="notify-title" style="padding: 16px 18px; border-bottom: 1px solid rgba(255,255,255,0.08); font-weight: 600;">Enable notifications</div>
-        <div id="notify-body" style="padding: 16px 18px; line-height: 1.5; color: #e5e7eb;">
-          Stay updated with balance changes, transactions, and menu updates. You can change this later in settings.
-        </div>
-        <div style="display:flex; gap: 10px; padding: 14px 18px; background: rgba(255,255,255,0.03); justify-content: flex-end;">
-          <button id="notify-decline" style="appearance:none; border: 1px solid rgba(255,255,255,0.18); background: transparent; color: #e5e7eb; padding: 10px 14px; border-radius: 8px; cursor: pointer;">Maybe later</button>
-          <button id="notify-accept" style="appearance:none; border: none; background: #4f46e5; color: white; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-weight: 600;">Allow notifications</button>
-        </div>
-      </div>
-    </div>
-    <script>
-      (function() {
-        const storageKey = 'onesignal-notify-popup-dismissed';
-        const popup = document.getElementById('notify-popup');
-        const titleEl = document.getElementById('notify-title');
-        const bodyEl = document.getElementById('notify-body');
-        const acceptBtn = document.getElementById('notify-accept');
-        const declineBtn = document.getElementById('notify-decline');
-
-        function hidePopup() {
-          if (popup) popup.style.display = 'none';
-        }
-        function showPopup() {
-          if (popup) popup.style.display = 'flex';
-        }
-
-        function shouldShowPopup() {
-          if (sessionStorage.getItem(storageKey) === '1') return false;
-          const perm = (typeof Notification !== 'undefined' && Notification.permission) ? Notification.permission : 'default';
-          return perm === 'default';
-        }
-
-        function wireHandlers(OneSignal) {
-          if (!acceptBtn || !declineBtn) return;
-          acceptBtn.onclick = async function() {
-            try {
-              if (OneSignal && OneSignal.Notifications && OneSignal.Notifications.requestPermission) {
-                await OneSignal.Notifications.requestPermission();
-                // After permission is granted, subscribe immediately
-                try {
-                  const permNow = (typeof Notification !== 'undefined' && Notification.permission) ? Notification.permission : 'default';
-                  if (permNow === 'granted' && OneSignal.Notifications && OneSignal.Notifications.subscribe) {
-                    try { await (navigator.serviceWorker && navigator.serviceWorker.ready); } catch (_) {}
-                    await OneSignal.Notifications.subscribe();
-                    try { console.log('[OneSignal] Subscribed immediately. User ID:', await OneSignal.User.getId()); } catch(_) { console.log('[OneSignal] Subscribed immediately after grant'); }
-                  }
-                } catch (_) {}
-              } else if (typeof Notification !== 'undefined' && Notification.requestPermission) {
-                await Notification.requestPermission();
-              }
-            } catch (e) {
-              // no-op
-            } finally {
-              sessionStorage.setItem(storageKey, '1');
-              hidePopup();
-            }
-          };
-          declineBtn.onclick = function() {
-            sessionStorage.setItem(storageKey, '1');
-            hidePopup();
-          };
-        }
-
-        // Wait for page load and OneSignal init
-        window.addEventListener('load', function() {
-          const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
-          const isIOS = /iPad|iPhone|iPod/i.test(navigator.userAgent);
-          const perm = (typeof Notification !== 'undefined' && Notification.permission) ? Notification.permission : 'default';
-
-          // Debug telemetry
-          try {
-            console.log('[PWA] display-mode standalone?', isStandalone);
-            console.log('[PWA] iOS?', isIOS);
-            console.log('[PWA] Notification.permission:', perm);
-          } catch (_) {}
-
-          // Only show our permission popup when running as installed PWA
-          if (!isStandalone) return;
-          if (!shouldShowPopup()) return;
-
-          // If OneSignal v16 page SDK is present, wait on its deferred init
-          if (window.OneSignalDeferred) {
-            window.OneSignalDeferred.push(function(OneSignal) {
-              // If already granted/denied, skip
-              const p = (typeof Notification !== 'undefined' && Notification.permission) ? Notification.permission : 'default';
-              if (p === 'default') {
-                showPopup();
-                wireHandlers(OneSignal);
-              }
-            });
-          } else {
-            // Fallback if SDK not yet loaded
-            showPopup();
-            wireHandlers(undefined);
-          }
-        });
-      })();
-    </script>
     <!--
       This HTML file is a template.
       If you open it directly in the browser, you will see an empty page.

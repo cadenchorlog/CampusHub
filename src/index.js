@@ -3,11 +3,30 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import OnboardingPage from './pages/OnboardingPage';
+
+function isStandalone() {
+  try { return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true; } catch (_) { return false; }
+}
+
+function RequireOnboarding({ children }) {
+  const need = (() => {
+    try { return isStandalone() && localStorage.getItem('onboardingCompleteV1') !== '1'; } catch (_) { return false; }
+  })();
+  if (need) return <Navigate to="/onboarding" replace />;
+  return children;
+}
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <App />
+    <BrowserRouter>
+      <Routes>
+        <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/*" element={<RequireOnboarding><App /></RequireOnboarding>} />
+      </Routes>
+    </BrowserRouter>
   </React.StrictMode>
 );
 
