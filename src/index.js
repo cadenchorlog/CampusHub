@@ -12,7 +12,13 @@ function isStandalone() {
 
 function RequireOnboarding({ children }) {
   const need = (() => {
-    try { return isStandalone() && localStorage.getItem('onboardingCompleteV1') !== '1'; } catch (_) { return false; }
+    try { 
+      // Show onboarding for PWA apps OR desktop users who haven't completed onboarding
+      return (isStandalone() || (!isStandalone() && window.innerWidth > 768)) && 
+             localStorage.getItem('onboardingCompleteV1') !== '1'; 
+    } catch (_) { 
+      return false; 
+    }
   })();
   if (need) return <Navigate to="/onboarding" replace />;
   return children;
