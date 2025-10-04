@@ -38,7 +38,17 @@ export default function Onboarding({
 }) {
   const [step, setStep] = useState(0); // 0: welcome, 1: push, 2: sign-in
   const [permState, setPermState] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'default');
+  const [showSignupPopup, setShowSignupPopup] = useState(false);
+  const [signupCountdown, setSignupCountdown] = useState(5);
   const standalone = useMemo(() => isStandalonePWA(), []);
+  const isComputer = useMemo(() => {
+    try {
+      return !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) && 
+             window.innerWidth > 768;
+    } catch (_) {
+      return false;
+    }
+  }, []);
 
   useEffect(() => {
     // Suppress the legacy HTML popup while onboarding is active
@@ -69,6 +79,29 @@ export default function Onboarding({
   }
 
   const [enablingPush, setEnablingPush] = useState(false);
+
+  // Handle sign-up button click
+  function handleSignUp() {
+    setShowSignupPopup(true);
+    setSignupCountdown(5);
+  }
+
+  // Countdown effect for sign-up popup
+  useEffect(() => {
+    if (!showSignupPopup) return;
+    
+    if (signupCountdown <= 0) {
+      window.open('https://cofi.campuscardcenter.com/ch/register/register.html', '_blank');
+      setShowSignupPopup(false);
+      return;
+    }
+    
+    const timer = setTimeout(() => {
+      setSignupCountdown(prev => prev - 1);
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, [showSignupPopup, signupCountdown]);
 
   async function handlePrimary() {
     if (step === 0) {
@@ -198,9 +231,20 @@ export default function Onboarding({
                       <input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} autoComplete="current-password" className="mt-1 w-full px-3 h-[44px] rounded-2xl border border-black/10 bg-white dark:border-white/10 dark:bg-[rgba(44,44,46,0.8)]" placeholder="••••••••" required />
                     </div>
                     {error && <p className="text-[13px] text-red-600 dark:text-red-400">{String(error)}</p>}
+                    {isComputer && (
+                      <button type="button" onClick={handleSignUp} className="h-[44px] w-full inline-flex items-center justify-center rounded-2xl text-white bg-[#34c759] font-semibold border border-transparent active:bg-[#30b54d]">
+                        Sign up for new account
+                      </button>
+                    )}
                     <button type="button" onClick={complete} className="h-[44px] w-full inline-flex items-center justify-center rounded-2xl text-[#007aff] bg-transparent font-semibold border border-transparent active:bg-black/5 dark:active:bg-white/10">Skip for now</button>
                   </div>
                 </div>
+                {!isComputer && (
+                  <div className="rounded-3xl bg-white p-5 shadow-[0_0.5px_0_0_rgba(0,0,0,0.2)] dark:bg-[rgba(28,28,30,0.9)]">
+                    <h2 className="font-semibold text-[17px] text-black/85 dark:text-white mb-1">Don't have an account?</h2>
+                    <p className="text-[15px] text-black/60 dark:text-white/70">Visit <span className="font-medium text-[#007aff]">yotecard.cadenchorlog.com</span> on your computer to complete sign up.</p>
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -248,6 +292,63 @@ export default function Onboarding({
           </button>
         </div>
       </div>
+
+      {/* Sign-up popup modal */}
+      <AnimatePresence>
+        {showSignupPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-sm w-full shadow-xl"
+            >
+              <div className="text-center">
+                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Ready to sign up?</h3>
+                <p className="text-gray-600 dark:text-gray-300 mb-4">
+                  Have your <span className="font-semibold text-blue-600 dark:text-blue-400">Student ID card</span> ready!
+                </p>
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 mb-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">Redirecting to registration in:</p>
+                  <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                    {signupCountdown}
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      window.open('https://cofi.campuscardcenter.com/ch/register/register.html', '_blank');
+                      setShowSignupPopup(false);
+                    }}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-xl transition-colors"
+                  >
+                    Go to Registration
+                  </button>
+                  <button
+                    onClick={() => setShowSignupPopup(false)}
+                    className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </ContainerTag>
   );
 }
