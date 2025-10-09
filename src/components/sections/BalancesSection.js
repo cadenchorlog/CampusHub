@@ -211,8 +211,18 @@ export default function BalancesSection({
               const grillMap = new Map(); // normLabel -> { label, description, tags }
               for (const meal of menuBuckets) {
                 for (const entry of (meal || [])) {
-                  const { label, station, description, tags } = getEntryMeta(entry);
-                  if (String(station || '').toLowerCase().includes('grill special')) {
+                  const { label, station, description, tags, notes } = getEntryMeta(entry);
+                  
+                  // Check if this is a Grill Special item using notes
+                  let isGrillSpecial = false;
+                  if (notes && notes.length > 0) {
+                    const note = notes[0];
+                    if (note && note.startsWith('@') && note.toLowerCase().includes('grill special')) {
+                      isGrillSpecial = true;
+                    }
+                  }
+                  
+                  if (isGrillSpecial) {
                     const norm = String(label || '').trim().toLowerCase();
                     // Home specials: include only items that have descriptions
                     if (norm && !grillMap.has(norm) && String(description || '').trim()) {
@@ -224,11 +234,20 @@ export default function BalancesSection({
 
               const mealCards = menuBuckets.map((meal, idx) => {
                 const groups = (meal || []).reduce((acc, entry) => {
-                  const { label, station, description, tags } = getEntryMeta(entry);
-                  const key = String(station || 'Other');
+                  const { label, station, description, tags, notes } = getEntryMeta(entry);
+                  
+                  // Extract category from notes (e.g., "@Soup" -> "Soup")
+                  let categoryKey = "Other";
+                  if (notes && notes.length > 0) {
+                    const note = notes[0];
+                    if (note && note.startsWith('@')) {
+                      categoryKey = note.substring(1); // Remove the @ symbol
+                    }
+                  }
+                  
                   const lbl = String(label || '').trim();
                   if (!lbl) return acc;
-                  const bucket = (acc[key] = acc[key] || []);
+                  const bucket = (acc[categoryKey] = acc[categoryKey] || []);
                   // keep insertion order, avoid dups by label
                   const exists = bucket.some(x => (x?.label || '').toLowerCase() === lbl.toLowerCase());
                   if (!exists) bucket.push({ label: lbl, description, tags });
