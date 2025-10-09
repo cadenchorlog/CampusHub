@@ -79,7 +79,11 @@ export function getEntryMeta(entry) {
       label: entry.label || entry.name || '',
       station: entry.station || entry.category || '',
       description: entry.description || '',
-      tags: Array.isArray(entry.tags) ? entry.tags : Array.isArray(entry.cor_icons) ? entry.cor_icons : []
+      tags: Array.isArray(entry.tags) ? entry.tags : Array.isArray(entry.cor_icons) ? entry.cor_icons : [],
+      tagAlts: Array.isArray(entry.tagAlts) ? entry.tagAlts : Array.isArray(entry.cor_icon_alts) ? entry.cor_icon_alts : [],
+      notes: Array.isArray(entry.notes) ? entry.notes : [],
+      id: entry.id || '',
+      mealPeriod: entry.mealPeriod || ''
     };
   }
   return { label: '', station: '', description: '', tags: [] };

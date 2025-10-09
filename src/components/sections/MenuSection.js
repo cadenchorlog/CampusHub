@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { formatDelta } from '../utils/helpers';
+import { formatDelta, isWeekendJS } from '../utils/helpers';
 import { 
   BREAKFAST_END, 
   LUNCH_END, 
@@ -124,15 +124,24 @@ export default function MenuSection({
                 // Group by category and dedupe item names per category (case-insensitive)
                 const seenByCat = {};
                 const groups = (meal || []).reduce((acc, entry) => {
-                  const { label, station, description, tags } = getEntryMeta(entry);
-                  const key = station || "Other";
+                  const { label, station, description, tags, notes } = getEntryMeta(entry);
+                  
+                  // Extract category from notes (e.g., "@Soup" -> "Soup")
+                  let categoryKey = "Other";
+                  if (notes && notes.length > 0) {
+                    const note = notes[0];
+                    if (note && note.startsWith('@')) {
+                      categoryKey = note.substring(1); // Remove the @ symbol
+                    }
+                  }
+                  
                   const lbl = (label || "").trim();
                   if (!lbl) return acc;
                   const norm = lbl.toLowerCase();
-                  const bucket = (acc[key] = acc[key] || []);
-                  const seen = (seenByCat[key] = seenByCat[key] || new Set());
+                  const bucket = (acc[categoryKey] = acc[categoryKey] || []);
+                  const seen = (seenByCat[categoryKey] = seenByCat[categoryKey] || new Set());
                   if (!seen.has(norm)) {
-                    bucket.push({ label: lbl, description, tags });
+                    bucket.push({ label: lbl, description, tags, notes, station });
                     seen.add(norm);
                   }
                   return acc;
@@ -153,6 +162,16 @@ export default function MenuSection({
                   const lunchGSKey = Object.keys(lunch.groups).find(k => toKey(k).includes('grill special'));
                   if (!dinnerHasGS && lunchGSKey) {
                     dinner.groups[lunchGSKey] = (dinner.groups[lunchGSKey] || []).concat(lunch.groups[lunchGSKey] || []);
+                  }
+                }
+
+                // Copy Soup, Pizza, Grill from Lunch to Dinner on weekdays
+                if (dinner && lunch && !isWeekendJS()) {
+                  const DUP = new Set(["Soup", "Pizza", "Grill"]);
+                  for (const [catName, items] of Object.entries(lunch.groups)) {
+                    if (DUP.has(catName)) {
+                      dinner.groups[catName] = (dinner.groups[catName] || []).concat(items || []);
+                    }
                   }
                 }
 

@@ -27,7 +27,10 @@ export default function SimplotCategory({ name, items, defaultOpen = false, favo
                 const label = typeof it === 'string' ? it : (it?.label || '');
                 const description = typeof it === 'object' ? (it?.description || '') : '';
                 const tags = typeof it === 'object' && Array.isArray(it?.tags) ? it.tags : [];
-                return { label, description, tags, _i: idx };
+                const tagAlts = typeof it === 'object' && Array.isArray(it?.tagAlts) ? it.tagAlts : [];
+                const notes = typeof it === 'object' && Array.isArray(it?.notes) ? it.notes : [];
+                const id = typeof it === 'object' ? (it?.id || '') : '';
+                return { label, description, tags, tagAlts, notes, id, _i: idx };
               });
               const withDesc = normalized.filter(x => String(x.description || '').trim());
               const withoutDesc = normalized.filter(x => !String(x.description || '').trim());
@@ -35,7 +38,7 @@ export default function SimplotCategory({ name, items, defaultOpen = false, favo
               return itemsSorted.map((it, idx) => {
                 const isFavorited = favoritesHook?.isFavorited?.(it) || false;
                 const itemData = {
-                  id: `${name}-${it.label}-${it._i}`,
+                  id: it.id || `${name}-${it.label}-${it._i}`,
                   label: it.label,
                   description: it.description,
                   tags: it.tags,
@@ -53,11 +56,18 @@ export default function SimplotCategory({ name, items, defaultOpen = false, favo
                           )}
                           {it.tags.length > 0 && (
                             <div className="mt-1 flex flex-wrap gap-1">
-                              {it.tags.map((t) => {
+                              {it.tags.map((t, tagIdx) => {
                                 const s = String(t || '');
                                 const short = s.toLowerCase().includes('made without gluten-containing ingredients') ? 'GF' : s;
+                                const alt = it.tagAlts[tagIdx] || '';
                                 return (
-                                  <span key={short + s} className="inline-flex items-center px-2 py-0.5 rounded-md border border-gray-200 bg-white text-[11px] text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">{short}</span>
+                                  <span 
+                                    key={short + s + tagIdx} 
+                                    className="inline-flex items-center px-2 py-0.5 rounded-md border border-gray-200 bg-white text-[11px] text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                    title={alt}
+                                  >
+                                    {short}
+                                  </span>
                                 );
                               })}
                             </div>

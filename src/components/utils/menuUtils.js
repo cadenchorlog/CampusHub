@@ -16,12 +16,15 @@ export function normalizeMenuPayload(payload) {
     // }
     if (payload && typeof payload === 'object') {
       const ORDER = ["Breakfast", "Brunch", "Lunch", "Dinner"]; // ensure stable order
-      const out = [];
-      for (const key of ORDER) {
-        if (!Object.prototype.hasOwnProperty.call(payload, key)) continue;
-        const meal = payload[key];
+      const mealBuckets = [];
+      
+      for (const mealKey of ORDER) {
+        if (!Object.prototype.hasOwnProperty.call(payload, mealKey)) continue;
+        const meal = payload[mealKey];
         const tabs = meal && typeof meal === 'object' ? meal.tabs : null;
         if (!tabs || typeof tabs !== 'object') continue;
+        
+        const mealItems = [];
         for (const tabName of Object.keys(tabs)) {
           const sections = tabs[tabName];
           if (!Array.isArray(sections)) continue;
@@ -33,13 +36,29 @@ export function normalizeMenuPayload(payload) {
               if (!label) continue;
               const description = it?.description || '';
               const tags = Array.isArray(it?.cor_icons) ? it.cor_icons : Array.isArray(it?.tags) ? it.tags : [];
+              const tagAlts = Array.isArray(it?.cor_icon_alts) ? it.cor_icon_alts : [];
+              const notes = Array.isArray(it?.notes) ? it.notes : [];
+              const id = it?.id || '';
+              
               // Carry as rich objects so downstream can render descriptions and badges
-              out.push({ label, station, description, tags });
+              mealItems.push({ 
+                label, 
+                station, 
+                description, 
+                tags, 
+                tagAlts,
+                notes,
+                id,
+                mealPeriod: mealKey
+              });
             }
           }
         }
+        if (mealItems.length > 0) {
+          mealBuckets.push(mealItems);
+        }
       }
-      return [out];
+      return mealBuckets;
     }
   } catch (e) {
     console.warn('[menu] normalizeMenuPayload failed:', e);
@@ -53,7 +72,13 @@ export function normalizeMenuPayload(payload) {
 export function rebucketMenu(raw) {
   try {
     if (!Array.isArray(raw)) return [];
-    // Flatten into a single ordered stream of {label, station, description, tags}
+    
+    // If the data is already in meal buckets format (new format), return as-is
+    if (raw.length > 0 && Array.isArray(raw[0]) && raw[0].length > 0 && raw[0][0].mealPeriod) {
+      return raw;
+    }
+    
+    // Legacy format: flatten into a single ordered stream of {label, station, description, tags}
     const stream = [];
     for (const meal of raw) {
       if (!Array.isArray(meal)) continue;
