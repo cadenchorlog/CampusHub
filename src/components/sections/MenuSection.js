@@ -167,10 +167,9 @@ export default function MenuSection({
                 }
               } catch {}
 
-              // First, show meal period headers as separate cards
-              const mealHeaders = mealGroups
+              return mealGroups
                 .filter(({ idx }) => showByIdx(idx))
-                .map(({ label, idx }) => {
+                .map(({ groups, label, idx }) => {
                   const labelText = label || `Meal ${idx+1}`;
                   const s = String(labelText).toLowerCase();
                   let emoji = '🥪';
@@ -206,83 +205,78 @@ export default function MenuSection({
                     }
                   }
 
+                  // Determine current and next meal index to control default expansion
+                  const minutes2 = (() => { 
+                    const d = new Date(nowTick); 
+                    return d.getHours() * 60 + d.getMinutes(); 
+                  })();
+                  let currentIdx = 0, nextIdx = 0;
+                  if (labels.length === 2) {
+                    // Brunch, Dinner
+                    if (minutes2 <= BRUNCH_END) { currentIdx = 0; nextIdx = 1; } else { currentIdx = 1; nextIdx = 1; }
+                  } else {
+                    // Breakfast, Lunch, Dinner
+                    if (minutes2 <= BREAKFAST_END) { currentIdx = 0; nextIdx = 1; }
+                    else if (minutes2 <= LUNCH_END) { currentIdx = 1; nextIdx = 2; }
+                    else { currentIdx = 2; nextIdx = 2; }
+                  }
+
+                  const isCurOrNextMeal = (idx === currentIdx || idx === nextIdx);
+                  const shouldDefaultOpen = (catName) => {
+                    if (!isCurOrNextMeal) return false;
+                    const s2 = String(catName || '').toLowerCase();
+                    return s2.includes('comfort') || s2.includes('global') || s2.includes('grill special');
+                  };
+
+                  // Sort categories by priority
+                  const entries = Object.entries(groups).sort((a, b) => {
+                    const pri = (k) => {
+                      const s = String(k || '').toLowerCase();
+                      if (s.includes('comfort')) return 0;
+                      if (s.includes('global')) return 1;
+                      if (s.includes('grill special')) return 2;
+                      return 3;
+                    };
+                    const pa = pri(a[0]);
+                    const pb = pri(b[0]);
+                    if (pa !== pb) return pa - pb;
+                    return String(a[0]).localeCompare(String(b[0]));
+                  });
+
                   return (
-                    <div key={`meal-${idx}`} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900/60">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full border flex items-center justify-center ${iconBg} dark:border-gray-600 dark:bg-gray-800`}>
-                          <span className="text-lg">{emoji}</span>
-                        </div>
-                        <div className="flex-1">
-                          <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">{labelText}</div>
-                          {countdownText && (
-                            <div className="text-sm text-gray-600 dark:text-gray-400">{countdownText}</div>
-                          )}
+                    <div key={idx} className="space-y-3">
+                      {/* Meal period header */}
+                      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900/60">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full border flex items-center justify-center ${iconBg} dark:border-gray-600 dark:bg-gray-800`}>
+                            <span className="text-lg">{emoji}</span>
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">{labelText}</div>
+                            {countdownText && (
+                              <div className="text-sm text-gray-600 dark:text-gray-400">{countdownText}</div>
+                            )}
+                          </div>
                         </div>
                       </div>
+
+                      {/* Categories for this meal */}
+                      {entries.length === 0 ? (
+                        <p className="text-gray-600">No items listed.</p>
+                      ) : (
+                        entries.map(([catName, items]) => (
+                          <SimplotCategory 
+                            key={`${catName}-${idx}`} 
+                            name={catName} 
+                            items={items} 
+                            defaultOpen={shouldDefaultOpen(catName)}
+                            favoritesHook={favoritesHook}
+                          />
+                        ))
+                      )}
                     </div>
                   );
                 });
-
-              // Then, collect all categories from all meals and display them as individual sections
-              const allCategories = new Map();
-              
-              mealGroups
-                .filter(({ idx }) => showByIdx(idx))
-                .forEach(({ groups, label }) => {
-                  Object.entries(groups).forEach(([catName, items]) => {
-                    if (!allCategories.has(catName)) {
-                      allCategories.set(catName, []);
-                    }
-                    // Add meal label to each item for context
-                    const itemsWithMeal = items.map(item => ({
-                      ...item,
-                      mealLabel: label
-                    }));
-                    allCategories.get(catName).push(...itemsWithMeal);
-                  });
-                });
-
-              // Sort categories by priority
-              const sortedCategories = Array.from(allCategories.entries()).sort((a, b) => {
-                const pri = (k) => {
-                  const s = String(k || '').toLowerCase();
-                  if (s.includes('comfort')) return 0;
-                  if (s.includes('global')) return 1;
-                  if (s.includes('grill special')) return 2;
-                  return 3;
-                };
-                const pa = pri(a[0]);
-                const pb = pri(b[0]);
-                if (pa !== pb) return pa - pb;
-                return String(a[0]).localeCompare(String(b[0]));
-              });
-
-              const shouldDefaultOpen = (catName) => {
-                const s2 = String(catName || '').toLowerCase();
-                return s2.includes('comfort') || s2.includes('global') || s2.includes('grill special');
-              };
-
-              return (
-                <div className="space-y-4">
-                  {/* Meal period headers */}
-                  {mealHeaders}
-                  
-                  {/* Categories as individual sections */}
-                  {sortedCategories.length === 0 ? (
-                    <p className="text-gray-600">No items listed.</p>
-                  ) : (
-                    sortedCategories.map(([catName, items]) => (
-                      <SimplotCategory 
-                        key={catName} 
-                        name={catName} 
-                        items={items} 
-                        defaultOpen={shouldDefaultOpen(catName)}
-                        favoritesHook={favoritesHook}
-                      />
-                    ))
-                  )}
-                </div>
-              );
             })()}
           </div>
         )}
