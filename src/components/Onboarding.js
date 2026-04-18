@@ -1,27 +1,19 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Small helper to get OneSignal via the deferred init API
+// OneSignal deferred helper
 function getOneSignal() {
   return new Promise((resolve) => {
     try {
       if (window.OneSignal) return resolve(window.OneSignal);
       window.OneSignalDeferred = window.OneSignalDeferred || [];
-      window.OneSignalDeferred.push(function(OneSignal) {
+      window.OneSignalDeferred.push(function (OneSignal) {
         resolve(OneSignal);
       });
     } catch (_) {
       resolve(undefined);
     }
   });
-}
-
-function isStandalonePWA() {
-  try {
-    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
-  } catch (_) {
-    return false;
-  }
 }
 
 export default function Onboarding({
@@ -33,27 +25,27 @@ export default function Onboarding({
   error,
   onLogin,
   onComplete,
-  onSkipAll,
-  mode = 'overlay', // 'overlay' | 'page'
 }) {
-  const [step, setStep] = useState(0); // 0: welcome, 1: push, 2: sign-in
-  const [permState, setPermState] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'default');
-  const [showSignupPopup, setShowSignupPopup] = useState(false);
-  const [signupCountdown, setSignupCountdown] = useState(5);
-  // eslint-disable-next-line no-unused-vars
-  const standalone = useMemo(() => isStandalonePWA(), []);
+  const [step, setStep] = useState(0); // 0: welcome, 1: notifications, 2: sign-in
+  const [permState, setPermState] = useState(
+    typeof Notification !== 'undefined' ? Notification.permission : 'default'
+  );
+  const [notifChoice, setNotifChoice] = useState(null); // null | 'on' | 'off'
+  const [enablingPush, setEnablingPush] = useState(false);
+
+  useEffect(() => {
+    try { sessionStorage.setItem('onesignal-notify-popup-dismissed', '1'); } catch (_) {}
+  }, []);
+
   const isComputer = useMemo(() => {
     try {
-      return !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) && 
-             window.innerWidth > 768;
+      return (
+        !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) &&
+        window.innerWidth > 768
+      );
     } catch (_) {
       return false;
     }
-  }, []);
-
-  useEffect(() => {
-    // Suppress the legacy HTML popup while onboarding is active
-    try { sessionStorage.setItem('onesignal-notify-popup-dismissed', '1'); } catch (_) {}
   }, []);
 
   async function requestPush() {
@@ -62,9 +54,8 @@ export default function Onboarding({
       if (OneSignal && OneSignal.Notifications && OneSignal.Notifications.requestPermission) {
         await OneSignal.Notifications.requestPermission();
         try {
-          // If user granted, subscribe immediately
-          const perm = (typeof Notification !== 'undefined' && Notification.permission) ? Notification.permission : 'default';
-          if (perm === 'granted' && OneSignal.Notifications && OneSignal.Notifications.subscribe) {
+          const perm = (typeof Notification !== 'undefined' && Notification.permission) || 'default';
+          if (perm === 'granted' && OneSignal.Notifications.subscribe) {
             try { await (navigator.serviceWorker && navigator.serviceWorker.ready); } catch (_) {}
             await OneSignal.Notifications.subscribe();
           }
@@ -79,278 +70,517 @@ export default function Onboarding({
     }
   }
 
-  const [enablingPush, setEnablingPush] = useState(false);
-
-  // Handle sign-up button click
-  function handleSignUp() {
-    setShowSignupPopup(true);
-    setSignupCountdown(5);
-  }
-
-  // Countdown effect for sign-up popup
-  useEffect(() => {
-    if (!showSignupPopup) return;
-    
-    if (signupCountdown <= 0) {
-      window.open('https://cofi.campuscardcenter.com/ch/register/register.html', '_blank');
-      setShowSignupPopup(false);
-      return;
-    }
-    
-    const timer = setTimeout(() => {
-      setSignupCountdown(prev => prev - 1);
-    }, 1000);
-    
-    return () => clearTimeout(timer);
-  }, [showSignupPopup, signupCountdown]);
+  function goNext() { setStep(s => Math.min(s + 1, 2)); }
+  function goBack() { setStep(s => Math.max(s - 1, 0)); }
 
   async function handlePrimary() {
-    if (step === 0) {
-      next();
-      return;
-    }
+    if (step === 0) { goNext(); return; }
     if (step === 1) {
-      if (permState === 'denied') {
-        next();
-        return;
+      if (notifChoice === 'on' && permState !== 'granted' && permState !== 'denied') {
+        setEnablingPush(true);
+        try { await requestPush(); } finally { setEnablingPush(false); }
       }
-      setEnablingPush(true);
-      try {
-        await requestPush();
-      } finally {
-        setEnablingPush(false);
-      }
-      try {
-        const permNow = (typeof Notification !== 'undefined' && Notification.permission) ? Notification.permission : 'default';
-        if (permNow === 'granted') {
-          next();
-        }
-      } catch (_) {}
+      goNext();
       return;
     }
-    // step === 2
+    // step === 2 — sign in
+    if (!username.trim() || !password.trim()) return;
     onLogin?.(username, password);
   }
 
-  function next() {
-    setStep((s) => Math.min(s + 1, 2));
-  }
+  const loggingIn = status === 'logging_in';
+  const canSignIn = username.trim().length > 0 && password.trim().length > 0;
 
-  // eslint-disable-next-line no-unused-vars
-  function back() {
-    setStep((s) => Math.max(s - 1, 0));
-  }
-
-  function complete() {
-    onComplete?.();
-  }
-
-  const ContainerTag = 'div';
-  const containerClass = mode === 'overlay'
-    ? 'fixed inset-0 z-[1000] bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100 flex flex-col'
-    : 'fixed inset-0 z-[1000] text-gray-900 dark:text-gray-100 flex flex-col bg-[#f2f2f7] dark:bg-black';
-  const containerStyle = mode === 'overlay'
-    ? undefined
-    : {
-        paddingTop: 'max(env(safe-area-inset-top), 12px)',
-        paddingBottom: 'max(env(safe-area-inset-bottom), 12px)',
-        overflow: 'hidden',
-        height: '100dvh'
-      };
+  const primaryLabel = (() => {
+    if (step === 0) return "Let's go →";
+    if (step === 1) {
+      if (enablingPush) return 'Asking…';
+      if (notifChoice === 'on') return 'Notifications on ✓';
+      if (notifChoice === 'off') return 'Maybe later →';
+      return 'Skip for now →';
+    }
+    if (step === 2) {
+      if (loggingIn) return 'Signing in…';
+      return 'Sign in →';
+    }
+    return '→';
+  })();
 
   return (
-    <ContainerTag className={containerClass} style={containerStyle}>
-      {/* Top bar removed per request (no Skip) */}
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        display: 'flex', flexDirection: 'column',
+        background: '#F5EAD3',
+        color: 'var(--ink)',
+        paddingTop: 'max(env(safe-area-inset-top), 12px)',
+        paddingBottom: 'max(env(safe-area-inset-bottom), 16px)',
+      }}
+    >
+      <div
+        style={{
+          flex: 1, width: '100%', maxWidth: 420, margin: '0 auto',
+          padding: '0 20px 12px',
+          display: 'flex', flexDirection: 'column',
+          overflowY: 'auto',
+        }}
+      >
+        {/* Top bar — back / paw-print progress / skip */}
+        <div
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '4px 4px 20px',
+          }}
+        >
+          {step > 0 ? (
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              onClick={goBack}
+              aria-label="Back"
+              style={{
+                border: 0, background: 'var(--paper)',
+                width: 40, height: 40, borderRadius: 12,
+                cursor: 'pointer',
+                boxShadow: '0 2px 0 var(--ink)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M15 6l-6 6 6 6" stroke="var(--ink)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </motion.button>
+          ) : (
+            <div style={{ width: 40 }} />
+          )}
 
-        {/* Large title header */}
-        <div className="w-full max-w-xl mx-auto pr-4 sm:pr-6 pl-6 sm:pl-10" style={{paddingTop: 4}}>
-          <h1 className="text-[42px] md:text-[48px] leading-tight font-extrabold text-black dark:text-white">YoteCard</h1>
-          <p className="text-[15px] text-black/70 dark:text-white/80 mt-1">A service from CampusHub</p>
-        </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {[0, 1, 2].map(i => (
+              <motion.div
+                key={i}
+                animate={{
+                  fontSize: i === step ? 22 : 16,
+                  opacity: i <= step ? 1 : 0.28,
+                  rotate: i === step ? -6 : 0,
+                  scale: i === step ? 1.1 : 1,
+                }}
+                transition={{ type: 'spring', stiffness: 500, damping: 24 }}
+              >
+                🐾
+              </motion.div>
+            ))}
+          </div>
 
-        {/* Content area (non-scrollable) with swipe-to-next — no extra left padding on cards */}
-        <div className="flex-1 w-full max-w-xl mx-auto px-4 sm:px-6 pt-4 pb-2 overflow-hidden">
-          <motion.div
-            className="relative h-full"
-            onPanStart={(e) => {
-              // Ignore pans starting from inputs/buttons
-              const el = e.target;
-              if (el && el.closest && el.closest('input, textarea, select, button')) return;
-            }}
-            onPanEnd={(e, info) => {
-              try {
-                const el = e.target;
-                if (el && el.closest && el.closest('input, textarea, select, button')) return;
-              } catch (_) {}
-              if (info?.offset?.x != null) {
-                const dx = info.offset.x;
-                const vx = info.velocity.x || 0;
-                const swipeLeft = dx < -60 || vx < -400;
-                if (swipeLeft) {
-                  if (step < 2) next(); else complete();
-                }
-              }
+          <button
+            onClick={onComplete}
+            style={{
+              border: 0, background: 'transparent', cursor: 'pointer',
+              fontSize: 13, fontWeight: 700, color: 'var(--ink-soft)',
             }}
           >
-            <AnimatePresence mode="popLayout">
-              {step === 0 && (
-                <motion.div key="step0" initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-10}} transition={{duration:0.2}} className="space-y-4">
-                <div className="rounded-3xl bg-white p-5 shadow-[0_0.5px_0_0_rgba(0,0,0,0.2)] dark:bg-[rgba(28,28,30,0.9)]">
-                  <h2 className="font-semibold text-[17px] text-black/85 dark:text-white mb-1">Stay in the loop</h2>
-                  <p className="text-[15px] text-black/60 dark:text-white/70">Turn on push notifications for balance updates, transactions, and menu changes.</p>
-                </div>
-                <div className="rounded-3xl bg-white p-5 shadow-[0_0.5px_0_0_rgba(0,0,0,0.2)] dark:bg-[rgba(28,28,30,0.9)]">
-                  <h2 className="font-semibold text-[17px] text-black/85 dark:text-white mb-1">Sign in to your account</h2>
-                  <p className="text-[15px] text-black/60 dark:text-white/70">Connect your campus card account to see your balances and recent activity.</p>
-                </div>
+            Skip
+          </button>
+        </div>
+
+        {/* Step content */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <AnimatePresence mode="wait">
+            {step === 0 && (
+              <motion.div
+                key="welcome"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <StepWelcome />
               </motion.div>
             )}
             {step === 1 && (
-              <motion.div key="step1" initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-10}} transition={{duration:0.2}} className="space-y-4">
-                <div className="rounded-3xl bg-white p-5 shadow-[0_0.5px_0_0_rgba(0,0,0,0.2)] dark:bg-[rgba(28,28,30,0.9)]">
-                  <div>
-                    <h2 className="font-semibold text-[17px] text-black/85 dark:text-white">Enable notifications</h2>
-                    <p className="text-[15px] text-black/60 dark:text-white/70 mt-1">We’ll only send relevant updates. You can change this anytime in Settings.</p>
-                  </div>
-                  {permState === 'denied' && (
-                    <p className="text-[13px] text-amber-700 dark:text-amber-400 mt-3">You can enable notifications from Settings later.</p>
-                  )}
-                </div>
+              <motion.div
+                key="notif"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <StepNotif
+                  notif={notifChoice}
+                  setNotif={setNotifChoice}
+                  permState={permState}
+                />
               </motion.div>
             )}
             {step === 2 && (
-              <motion.div key="step2" initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-10}} transition={{duration:0.2}} className="space-y-4">
-                <div className="rounded-3xl bg-white p-5 shadow-[0_0.5px_0_0_rgba(0,0,0,0.2)] dark:bg-[rgba(28,28,30,0.9)]">
-                  <h2 className="font-semibold text-[17px] text-black/85 dark:text-white mb-3">Sign in</h2>
-                  {/* Inputs only; Sign In handled by primary pill below */}
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-[13px] font-medium text-black/60 dark:text-white/70">Username</label>
-                      <input value={username} onChange={(e)=>setUsername(e.target.value)} autoComplete="username" className="mt-1 w-full px-3 h-[44px] rounded-2xl border border-black/10 bg-white dark:border-white/10 dark:bg-[rgba(44,44,46,0.8)]" placeholder="Your username" required />
-                    </div>
-                    <div>
-                      <label className="text-[13px] font-medium text-black/60 dark:text-white/70">Password</label>
-                      <input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} autoComplete="current-password" className="mt-1 w-full px-3 h-[44px] rounded-2xl border border-black/10 bg-white dark:border-white/10 dark:bg-[rgba(44,44,46,0.8)]" placeholder="••••••••" required />
-                    </div>
-                    {error && <p className="text-[13px] text-red-600 dark:text-red-400">{String(error)}</p>}
-                    {isComputer && (
-                      <button type="button" onClick={handleSignUp} className="h-[44px] w-full inline-flex items-center justify-center rounded-2xl text-white bg-[#34c759] font-semibold border border-transparent active:bg-[#30b54d]">
-                        Sign up for new account
-                      </button>
-                    )}
-                    <button type="button" onClick={complete} className="h-[44px] w-full inline-flex items-center justify-center rounded-2xl text-[#007aff] bg-transparent font-semibold border border-transparent active:bg-black/5 dark:active:bg-white/10">Skip for now</button>
-                  </div>
-                </div>
-                {!isComputer && (
-                  <div className="rounded-3xl bg-white p-5 shadow-[0_0.5px_0_0_rgba(0,0,0,0.2)] dark:bg-[rgba(28,28,30,0.9)]">
-                    <h2 className="font-semibold text-[17px] text-black/85 dark:text-white mb-1">Don't have an account?</h2>
-                    <p className="text-[15px] text-black/60 dark:text-white/70">Visit <span className="font-medium text-[#007aff]">yotecard.cadenchorlog.com</span> on your computer to complete sign up.</p>
-                  </div>
-                )}
+              <motion.div
+                key="signin"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <StepSignIn
+                  u={username}
+                  setU={setUsername}
+                  p={password}
+                  setP={setPassword}
+                  error={error}
+                />
               </motion.div>
             )}
           </AnimatePresence>
+        </div>
+
+        {/* Bottom CTA */}
+        <div style={{ paddingTop: 16 }}>
+          <motion.button
+            whileTap={{ y: 3 }}
+            onClick={handlePrimary}
+            disabled={step === 2 ? (loggingIn || !canSignIn) : false}
+            style={{
+              width: '100%',
+              border: 0, cursor: (step === 2 && !canSignIn) ? 'not-allowed' : 'pointer',
+              borderRadius: 18, padding: '16px 20px',
+              fontFamily: 'inherit', fontSize: 17, fontWeight: 800,
+              color: '#fff', background: 'var(--sunset)',
+              boxShadow: '0 5px 0 var(--sunset-deep)',
+              opacity: (step === 2 && (!canSignIn || loggingIn)) ? 0.6 : 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}
+          >
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={primaryLabel}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.18 }}
+              >
+                {primaryLabel}
+              </motion.span>
+            </AnimatePresence>
+          </motion.button>
+
+          {step === 2 && !isComputer && (
+            <div
+              style={{
+                textAlign: 'center', marginTop: 12,
+                fontSize: 12, color: 'var(--ink-soft)',
+              }}
+            >
+              New here?{' '}
+              <span style={{ color: 'var(--sunset-deep)', fontWeight: 800 }}>
+                Visit yotecard.cadenchorlog.com on your computer to sign up.
+              </span>
+            </div>
+          )}
+          {step === 2 && isComputer && (
+            <div
+              style={{
+                textAlign: 'center', marginTop: 12,
+                fontSize: 12, color: 'var(--ink-soft)',
+              }}
+            >
+              New here?{' '}
+              <a
+                href="https://cofi.campuscardcenter.com/ch/register/register.html"
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: 'var(--sunset-deep)', fontWeight: 800, textDecoration: 'none' }}
+              >
+                Create an account
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StepWelcome() {
+  const features = [
+    { emoji: '💰', title: 'See your balance', sub: 'Coyote Cash + Flex at a glance', bg: '#FFE8C4' },
+    { emoji: '🍔', title: "Today's menu",     sub: 'Simplot, McCain, and The Den',  bg: '#FFD9E3' },
+    { emoji: '♥️', title: 'Favorite your faves', sub: "We'll ping when they're served", bg: '#D4F4D8' },
+  ];
+  return (
+    <div
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        textAlign: 'center', paddingTop: 20,
+      }}
+    >
+      <div
+        className="fraunces"
+        style={{
+          fontSize: 'clamp(52px, 16vw, 72px)',
+          fontWeight: 800, letterSpacing: '-.03em', lineHeight: 0.95,
+          marginTop: 40,
+        }}
+      >
+        <span>Yote</span>
+        <span style={{ color: 'var(--sunset)' }}>Card</span>
+      </div>
+      <div
+        style={{
+          fontSize: 14, color: 'var(--ink-soft)',
+          marginTop: 10, fontWeight: 600,
+        }}
+      >
+        The tastier way to track your meal plan
+      </div>
+
+      <div
+        style={{
+          marginTop: 32, display: 'flex', flexDirection: 'column',
+          gap: 12, width: '100%',
+        }}
+      >
+        {features.map((f, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.4, delay: 0.15 + i * 0.08, ease: [0.22, 1, 0.36, 1] }}
+            className="yc-card-soft"
+            style={{
+              background: f.bg,
+              display: 'flex', gap: 12, alignItems: 'center', textAlign: 'left',
+            }}
+          >
+            <div
+              style={{
+                width: 44, height: 44, borderRadius: 14,
+                background: 'var(--paper)',
+                border: '2px solid var(--ink)',
+                boxShadow: '2px 2px 0 var(--ink)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 22, transform: 'rotate(-6deg)', flexShrink: 0,
+              }}
+            >
+              {f.emoji}
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--ink)' }}>{f.title}</div>
+              <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>{f.sub}</div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StepNotif({ notif, setNotif, permState }) {
+  return (
+    <div style={{ paddingTop: 20 }}>
+      <div
+        className="fraunces"
+        style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-.02em', lineHeight: 1 }}
+      >
+        Stay in<br />the loop.
+      </div>
+      <div
+        style={{ fontSize: 14, color: 'var(--ink-soft)', marginTop: 10, lineHeight: 1.5 }}
+      >
+        Get a ping when your favorites hit the menu, your balance runs low, or a new meal's on.
+      </div>
+
+      {/* Mock notif preview */}
+      <div style={{ marginTop: 24, position: 'relative', padding: 10 }}>
+        <motion.div
+          initial={{ rotate: 3, y: 8, opacity: 0 }}
+          animate={{ rotate: -1.5, y: 0, opacity: 1 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: 0.15 }}
+          style={{
+            background: 'rgba(255,248,234,.95)',
+            borderRadius: 18, padding: '12px 14px',
+            display: 'flex', gap: 10, alignItems: 'center',
+            border: '2px solid var(--ink)',
+            boxShadow: '0 5px 0 var(--ink)',
+          }}
+        >
+          <div
+            style={{
+              width: 38, height: 38, borderRadius: 10,
+              background: 'var(--sunset)',
+              border: '2px solid var(--ink)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 18, color: '#fff', fontWeight: 800,
+              fontFamily: 'Fraunces,serif',
+            }}
+          >
+            Y
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: 'var(--ink-soft)', fontWeight: 700 }}>
+              YoteCard · now
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, marginTop: 1 }}>
+              Prime rib's on at Simplot 🍖
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+              Dinner just started. Go get it.
+            </div>
+          </div>
         </motion.div>
       </div>
 
-      <div className="relative" style={{height: '84px'}}>
-        {/* Page indicator pill (left), aligned to Next spacing symmetry */}
-        <div className="absolute left-8 sm:left-6" style={{bottom: '24px'}}>
-          <div className="h-[36px] px-3 rounded-full border border-black/10 dark:border-white/10 bg-white/90 dark:bg-white/10 backdrop-blur flex items-center gap-2 shadow-sm select-none">
-            <div className={`w-2 h-2 rounded-full ${step===0 ? 'bg-gray-900 dark:bg-gray-100' : 'bg-gray-400 dark:bg-gray-700'}`} />
-            <div className={`w-2 h-2 rounded-full ${step===1 ? 'bg-gray-900 dark:bg-gray-100' : 'bg-gray-400 dark:bg-gray-700'}`} />
-            <div className={`w-2 h-2 rounded-full ${step===2 ? 'bg-gray-900 dark:bg-gray-100' : 'bg-gray-400 dark:bg-gray-700'}`} />
+      <div
+        style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}
+      >
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={() => setNotif('on')}
+          style={{
+            border: notif === 'on' ? '2.5px solid var(--ink)' : '2px solid rgba(43,24,16,.15)',
+            background: notif === 'on' ? 'var(--sunset)' : 'var(--paper)',
+            color: notif === 'on' ? '#fff' : 'var(--ink)',
+            borderRadius: 16, padding: '14px 16px',
+            cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+            boxShadow: notif === 'on' ? '0 4px 0 var(--sunset-deep)' : '0 3px 0 rgba(43,24,16,.08)',
+            display: 'flex', alignItems: 'center', gap: 12,
+          }}
+        >
+          <div style={{ fontSize: 22 }}>🔔</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 800, fontSize: 15 }}>Turn on notifications</div>
+            <div style={{ fontSize: 12, opacity: 0.8, marginTop: 2 }}>
+              Only the stuff that matters — promise.
+            </div>
           </div>
-        </div>
+          {notif === 'on' && <div style={{ fontSize: 18 }}>✓</div>}
+        </motion.button>
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={() => setNotif('off')}
+          style={{
+            border: notif === 'off' ? '2.5px solid var(--ink)' : '2px solid rgba(43,24,16,.15)',
+            background: notif === 'off' ? '#F3E3C6' : 'var(--paper)',
+            color: 'var(--ink)',
+            borderRadius: 16, padding: '14px 16px',
+            cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+            boxShadow: notif === 'off' ? '0 4px 0 rgba(43,24,16,.2)' : '0 3px 0 rgba(43,24,16,.08)',
+            display: 'flex', alignItems: 'center', gap: 12,
+          }}
+        >
+          <div style={{ fontSize: 22 }}>🤫</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 800, fontSize: 15 }}>Not right now</div>
+            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
+              You can change this anytime in Settings.
+            </div>
+          </div>
+        </motion.button>
 
-        {/* Primary pill (right) with symmetric bottom/right spacing; label animates */}
-        <div className="absolute right-8 sm:right-6" style={{bottom: '16px'}}>
-          <button
-            onClick={handlePrimary}
-            disabled={(step === 2 && status === 'logging_in') || (step === 1 && enablingPush)}
-            className="min-w-[148px] h-[52px] px-6 rounded-full text-[17px] font-semibold text-white bg-[#007aff] shadow-[0_10px_24px_rgba(0,122,255,0.35)] active:shadow-[0_6px_16px_rgba(0,122,255,0.35)] active:translate-y-[1px] disabled:opacity-60"
+        {permState === 'denied' && (
+          <p style={{ fontSize: 12, color: '#8B5A00', fontWeight: 700, marginTop: 4 }}>
+            Notifications are blocked in your browser — enable them in Settings to get pings.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StepSignIn({ u, setU, p, setP, error }) {
+  const inputStyle = {
+    width: '100%',
+    background: 'var(--paper)',
+    border: '2px solid var(--ink)',
+    borderRadius: 16,
+    padding: '14px 16px',
+    fontSize: 16,
+    fontFamily: 'inherit',
+    color: 'var(--ink)',
+    boxShadow: 'inset 0 3px 0 rgba(43,24,16,.06)',
+    outline: 'none',
+  };
+  return (
+    <div style={{ paddingTop: 20 }}>
+      <div
+        className="fraunces"
+        style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-.02em', lineHeight: 1 }}
+      >
+        One last<br />thing.
+      </div>
+      <div
+        style={{ fontSize: 14, color: 'var(--ink-soft)', marginTop: 10, lineHeight: 1.5 }}
+      >
+        Sign in with your Campus Card account to see your balance and recent munches.
+      </div>
+
+      <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <label
+            style={{
+              fontSize: 13, fontWeight: 800, color: 'var(--ink)',
+              marginBottom: 6, display: 'block',
+            }}
           >
-            <AnimatePresence mode="wait" initial={false}>
-              {step === 0 && (
-                <motion.span key="next0" initial={{opacity:0, y:4}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-4}} transition={{duration:0.18}}>Next</motion.span>
-              )}
-              {step === 1 && (
-                enablingPush ? (
-                  <motion.span key="enabling" initial={{opacity:0, y:4}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-4}} transition={{duration:0.18}}>Enabling…</motion.span>
-                ) : permState === 'denied' ? (
-                  <motion.span key="skip" initial={{opacity:0, y:4}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-4}} transition={{duration:0.18}}>Skip</motion.span>
-                ) : (
-                  <motion.span key="enable" initial={{opacity:0, y:4}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-4}} transition={{duration:0.18}}>Enable</motion.span>
-                )
-              )}
-              {step === 2 && (
-                status === 'logging_in' ? (
-                  <motion.span key="signing" initial={{opacity:0, y:4}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-4}} transition={{duration:0.18}}>Signing in…</motion.span>
-                ) : (
-                  <motion.span key="signin" initial={{opacity:0, y:4}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-4}} transition={{duration:0.18}}>Sign In</motion.span>
-                )
-              )}
-            </AnimatePresence>
-          </button>
+            Username
+          </label>
+          <input
+            autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck="false"
+            value={u}
+            onChange={(e) => setU(e.target.value)}
+            placeholder="your Campus Card handle"
+            style={inputStyle}
+          />
+        </div>
+        <div>
+          <label
+            style={{
+              fontSize: 13, fontWeight: 800, color: 'var(--ink)',
+              marginBottom: 6, display: 'block',
+            }}
+          >
+            Password
+          </label>
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={p}
+            onChange={(e) => setP(e.target.value)}
+            placeholder="••••••••"
+            style={inputStyle}
+          />
         </div>
       </div>
 
-      {/* Sign-up popup modal */}
-      <AnimatePresence>
-        {showSignupPopup && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4"
-            role="dialog"
-            aria-modal="true"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-sm w-full shadow-xl"
-            >
-              <div className="text-center">
-                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Ready to sign up?</h3>
-                <p className="text-gray-600 dark:text-gray-300 mb-4">
-                  Have your <span className="font-semibold text-blue-600 dark:text-blue-400">Student ID card</span> ready!
-                </p>
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 mb-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">Redirecting to registration in:</p>
-                  <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                    {signupCountdown}
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      window.open('https://cofi.campuscardcenter.com/ch/register/register.html', '_blank');
-                      setShowSignupPopup(false);
-                    }}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-xl transition-colors"
-                  >
-                    Go to Registration
-                  </button>
-                  <button
-                    onClick={() => setShowSignupPopup(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </ContainerTag>
+      <div
+        className="yc-card-soft"
+        style={{
+          marginTop: 16,
+          background: '#F3E3C6',
+          display: 'flex', gap: 10, alignItems: 'center',
+          padding: '10px 12px',
+        }}
+      >
+        <div style={{ fontSize: 18 }}>🔒</div>
+        <div style={{ fontSize: 11, color: 'var(--ink-soft)', lineHeight: 1.4 }}>
+          We talk to the Campus Card Center that runs your C of I card. We never see your password.
+        </div>
+      </div>
+
+      {error && (
+        <motion.p
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            color: '#9B1C1C', fontWeight: 700, textAlign: 'center',
+            padding: 12, background: '#FEE2E2',
+            border: '2px solid #FCA5A5', borderRadius: 14,
+            fontSize: 13, marginTop: 14,
+          }}
+          aria-live="polite"
+        >
+          {String(error)}
+        </motion.p>
+      )}
+    </div>
   );
 }
