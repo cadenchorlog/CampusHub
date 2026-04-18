@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Small helper to get OneSignal via the deferred init API
@@ -40,6 +40,7 @@ export default function Onboarding({
   const [permState, setPermState] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'default');
   const [showSignupPopup, setShowSignupPopup] = useState(false);
   const [signupCountdown, setSignupCountdown] = useState(5);
+  // eslint-disable-next-line no-unused-vars
   const standalone = useMemo(() => isStandalonePWA(), []);
   const isComputer = useMemo(() => {
     try {
@@ -135,6 +136,7 @@ export default function Onboarding({
     setStep((s) => Math.min(s + 1, 2));
   }
 
+  // eslint-disable-next-line no-unused-vars
   function back() {
     setStep((s) => Math.max(s - 1, 0));
   }
