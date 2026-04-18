@@ -1,7 +1,113 @@
-import React from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { accountLabel } from '../utils/helpers';
+import { accountLabel, isWeekendJS, formatDelta } from '../utils/helpers';
+import {
+  BREAKFAST_START, BREAKFAST_END,
+  LUNCH_START, LUNCH_END,
+  BRUNCH_START, BRUNCH_END,
+  DINNER_START, DINNER_END,
+} from '../utils/constants';
 import InlineSignIn from '../auth/InlineSignIn';
+import FoodSticker from '../ui/FoodSticker';
+
+function parseAmount(str) {
+  if (typeof str === 'number') return str;
+  const n = parseFloat(String(str || '').replace(/[^0-9.-]+/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
+// Return the NEXT upcoming meal (not the currently serving one) at Simplot
+function upcomingMeal(date) {
+  const minutes = date.getHours() * 60 + date.getMinutes();
+  const weekend = isWeekendJS(date);
+  const windows = weekend
+    ? [
+        { name: 'Brunch', kind: 'brunch', emoji: '🥞', start: BRUNCH_START, end: BRUNCH_END },
+        { name: 'Dinner', kind: 'dinner', emoji: '🍗', start: DINNER_START, end: DINNER_END },
+      ]
+    : [
+        { name: 'Breakfast', kind: 'breakfast', emoji: '🥞', start: BREAKFAST_START, end: BREAKFAST_END },
+        { name: 'Lunch',     kind: 'lunch',     emoji: '🌮', start: LUNCH_START,     end: LUNCH_END },
+        { name: 'Dinner',    kind: 'dinner',    emoji: '🍗', start: DINNER_START,    end: DINNER_END },
+      ];
+
+  // Locate current period if any
+  let currentIdx = -1;
+  for (let i = 0; i < windows.length; i++) {
+    if (minutes >= windows[i].start && minutes <= windows[i].end) { currentIdx = i; break; }
+  }
+  // After-current candidates first, else the next upcoming
+  const afterCurrent = currentIdx >= 0 ? windows.slice(currentIdx + 1) : [];
+  const upcoming = afterCurrent.length
+    ? afterCurrent
+    : windows.filter(w => w.start > minutes);
+  if (upcoming.length) {
+    const next = upcoming[0];
+    return { meal: next, startsIn: next.start - minutes, tomorrow: false };
+  }
+  // No more today — tomorrow's first meal
+  const tomorrow = new Date(date.getTime() + 24 * 60 * 60 * 1000);
+  const tomorrowWeekend = isWeekendJS(tomorrow);
+  const firstTomorrow = tomorrowWeekend
+    ? { name: 'Brunch', kind: 'brunch', emoji: '🥞', start: BRUNCH_START, end: BRUNCH_END }
+    : { name: 'Breakfast', kind: 'breakfast', emoji: '🥞', start: BREAKFAST_START, end: BREAKFAST_END };
+  const minutesInDay = 24 * 60;
+  return {
+    meal: firstTomorrow,
+    startsIn: (minutesInDay - minutes) + firstTomorrow.start,
+    tomorrow: true,
+  };
+}
+
+// Pick a single "chef's pick" item from menuBuckets
+function pickChefPick(menuBuckets, getEntryMeta) {
+  if (!Array.isArray(menuBuckets) || menuBuckets.length === 0) return null;
+  // Priority: Comfort > Global > Grill Special
+  const priorityOf = (station) => {
+    const s = String(station || '').toLowerCase();
+    if (s.includes('comfort')) return 0;
+    if (s.includes('global')) return 1;
+    if (s.includes('grill special')) return 2;
+    return 3;
+  };
+  let best = null;
+  for (const meal of menuBuckets) {
+    for (const entry of (meal || [])) {
+      const { label, station, description, tags } = getEntryMeta(entry);
+      const lbl = String(label || '').trim();
+      const desc = String(description || '').trim();
+      if (!lbl || !desc) continue;
+      const rank = priorityOf(station);
+      if (rank >= 3) continue;
+      if (!best || rank < best._rank) {
+        best = { label: lbl, description: desc, tags: tags || [], _rank: rank };
+        if (rank === 0) break;
+      }
+    }
+    if (best && best._rank === 0) break;
+  }
+  return best;
+}
+
+function emojiForLabel(text) {
+  const t = String(text || '').toLowerCase();
+  if (t.includes('pizza')) return '🍕';
+  if (t.includes('burger')) return '🍔';
+  if (t.includes('taco')) return '🌮';
+  if (t.includes('salad')) return '🥗';
+  if (t.includes('chicken')) return '🍗';
+  if (t.includes('rib') || t.includes('beef') || t.includes('steak')) return '🍖';
+  if (t.includes('tofu') || t.includes('butter')) return '🧈';
+  if (t.includes('soup') || t.includes('chowder')) return '🍲';
+  if (t.includes('fries') || t.includes('fry')) return '🍟';
+  if (t.includes('cheese')) return '🧀';
+  if (t.includes('rice') || t.includes('quinoa') || t.includes('farro')) return '🌾';
+  if (t.includes('carrot') || t.includes('root') || t.includes('veggie')) return '🥕';
+  if (t.includes('fish') || t.includes('salmon')) return '🐟';
+  if (t.includes('pancake') || t.includes('waffle')) return '🥞';
+  if (t.includes('egg')) return '🍳';
+  return '🍽️';
+}
 
 export default function BalancesSection({
   hasSavedCreds,
@@ -16,20 +122,30 @@ export default function BalancesSection({
   onShowMobileNotice,
   signOut,
   shareNotice,
-  userCount,
-  userCountStatus,
-  userCountPct,
-  handleGiveawayShare,
   menuStatus,
   menuBuckets,
   getEntryMeta,
-  favoritesHook
+  favoritesHook,
 }) {
+  const [tick, setTick] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setTick(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const coyoteCash = balances.find(b => accountLabel(b.account) === 'Coyote Cash');
+  const flex = balances.find(b => accountLabel(b.account) === 'Flex');
+
+  const next = useMemo(() => upcomingMeal(new Date(tick)), [tick]);
+  const chefPick = useMemo(() => pickChefPick(menuBuckets, getEntryMeta), [menuBuckets, getEntryMeta]);
+  const favoritesAvailableToday = favoritesHook?.getFavoritesAvailableToday?.(menuBuckets) || [];
+  const lovesSavedCount = (favoritesHook?.favorites || []).length;
+
   return (
     <motion.section
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.55, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.55, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
       className="p-0"
     >
       {/* Share notice */}
@@ -41,106 +157,19 @@ export default function BalancesSection({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             transition={{ type: 'spring', stiffness: 500, damping: 38 }}
-            className="mt-4 mb-3"
+            className="mb-3"
             role="status"
             aria-live="polite"
           >
-            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 shadow-sm dark:border-gray-700 dark:bg-gray-900/90 dark:text-gray-100">
+            <div
+              className="yc-card-soft"
+              style={{ background: 'var(--paper)', fontSize: 14, color: 'var(--ink)' }}
+            >
               {shareNotice}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Favorites available today notice */}
-      {favoritesHook && (() => {
-        const favoritesAvailableToday = favoritesHook.getFavoritesAvailableToday(menuBuckets);
-        return favoritesAvailableToday.length > 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-3 sm:mb-6"
-          >
-            <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 shadow-sm dark:border-green-800 dark:bg-green-900/20">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center dark:bg-green-800">
-                  <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <div className="text-sm font-semibold text-green-800 dark:text-green-200">
-                    🎉 Your favorites are available today!
-                  </div>
-                  <div className="text-xs text-green-600 dark:text-green-400">
-                    {favoritesAvailableToday.length} of your favorite dishes are on today's menu
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        ) : null;
-      })()}
-
-      {/* $50 Giveaway Card (only when logged in) */}
-      {hasSavedCreds ? (
-        <motion.div layout transition={{ type: 'spring', stiffness: 500, damping: 38 }}>
-          <div className="mb-3 sm:mb-6">
-            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900/60">
-              <div className="text-sm font-semibold tracking-wide text-gray-700 dark:text-gray-200">$50 Giveaway</div>
-              <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
-                After YoteCard hits 300 users I will give away $50 to a random person. Share it so you can win! If you win I will contact you by text.
-              </p>
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <div className="flex-1">
-                  <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
-                    <span>{typeof userCount === 'number' ? userCount : (userCountStatus === 'error' ? '—' : '…')} / 300 users</span>
-                    <span>{userCountPct}%</span>
-                  </div>
-                  <div className="mt-1 h-2 w-full rounded-full bg-gray-200 overflow-hidden dark:bg-gray-700">
-                    <div
-                      className="h-full rounded-full bg-[#0A84FF] transition-all"
-                      style={{ width: userCountPct + '%' }}
-                      aria-hidden="true"
-                    />
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleGiveawayShare}
-                  className="shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-medium shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 dark:bg-gray-700 dark:hover:bg-gray-600 dark:focus:ring-gray-600"
-                  aria-label="Share giveaway"
-                >
-                  <svg
-                    aria-hidden="true"
-                    className="w-4 h-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M12 3v8" />
-                    <path d="M9 6l3-3 3 3" />
-                    <path d="M5 12v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
-                  </svg>
-                  <span>Share</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      ) : (
-        <div className="mb-2 sm:mb-4">
-          <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-2 shadow-sm dark:border-gray-700 dark:bg-gray-900/60">
-            <div className="text-base font-semibold text-gray-800 dark:text-gray-100">Log in to enter the $50 giveaway</div>
-            <div className="w-8 h-8 rounded-full border bg-indigo-50 border-indigo-200 dark:border-indigo-700 dark:bg-indigo-900/20 flex items-center justify-center">
-              <span role="img" aria-label="gift" className="text-base">🎁</span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {!hasSavedCreds && (
         <InlineSignIn
@@ -155,184 +184,319 @@ export default function BalancesSection({
         />
       )}
 
-      {/* Balances display */}
-      {(hasSavedCreds && balances.length > 0) ? (
-        <div className="relative">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
-            {balances.map((b, i) => (
-              <motion.div
-                key={`${accountLabel(b.account) || b.account || 'balance'}`}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: i * 0.05 }}
-                className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-all dark:border-gray-700 dark:bg-gray-900/60"
-                style={{ willChange: 'transform' }}
-              >
-                <div className="text-4xl font-bold text-gray-800 dark:text-gray-100 mb-2">
-                  {b.balance}
+      {/* 1. Coyote Cash hero */}
+      {hasSavedCreds && balances.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 12, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
+          style={{ marginBottom: 16 }}
+        >
+          <div
+            className="yc-card"
+            style={{
+              background: 'linear-gradient(135deg,#FFB877 0%,#FF6A3D 100%)',
+              borderColor: 'var(--ink)',
+              color: '#fff',
+              position: 'relative',
+              overflow: 'hidden',
+              padding: 22,
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute', top: -30, right: -20,
+                fontSize: 140, opacity: 0.22, lineHeight: 1, pointerEvents: 'none',
+              }}
+              aria-hidden="true"
+            >
+              🌵
+            </div>
+            <div
+              style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+                gap: 12, position: 'relative',
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontSize: 11, fontWeight: 800, letterSpacing: '.12em',
+                    textTransform: 'uppercase', opacity: 0.95,
+                  }}
+                >
+                  Coyote Cash
                 </div>
-                <p className="text-sm text-gray-600 dark:text-gray-300 tracking-wide">
-                  {accountLabel(b.account) === "Meals"
-                    ? "Meals left this week"
-                    : (accountLabel(b.account) || b.account)}
-                </p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      ) : hasSavedCreds && status === "done" ? (
-        <div className="text-center py-8">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-50 border border-yellow-200 flex items-center justify-center">
-            <svg className="w-8 h-8 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                <div
+                  className="fraunces-num"
+                  style={{
+                    fontSize: 'clamp(40px, 12vw, 56px)',
+                    lineHeight: 1,
+                    letterSpacing: '-.035em', marginTop: 4,
+                  }}
+                >
+                  {coyoteCash ? `$${parseAmount(coyoteCash.balance).toFixed(2)}` : '—'}
+                </div>
+              </div>
+              {flex && (
+                <div style={{ textAlign: 'right' }}>
+                  <div
+                    style={{
+                      fontSize: 11, fontWeight: 800, opacity: 0.95,
+                      textTransform: 'uppercase', letterSpacing: '.12em',
+                    }}
+                  >
+                    Flex
+                  </div>
+                  <div className="fraunces-num" style={{ fontSize: 26, marginTop: 4 }}>
+                    ${parseAmount(flex.balance).toFixed(2)}
+                  </div>
+                </div>
+              )}
+            </div>
+            <svg
+              width="100%" height="30" viewBox="0 0 300 30"
+              preserveAspectRatio="none"
+              style={{ marginTop: 14, display: 'block', position: 'relative' }}
+              aria-hidden="true"
+            >
+              <path
+                d="M0 25 Q30 10 60 20 T120 18 T180 22 T240 16 T300 20 L300 30 L0 30 Z"
+                fill="rgba(43,24,16,0.18)"
+              />
             </svg>
           </div>
-          <p className="text-gray-700">Could not find a balance label</p>
-        </div>
-      ) : null}
+        </motion.div>
+      )}
 
-      {/* Simplot Specials */}
-      <div className="mt-4 sm:mt-8">
-        <div className="flex items-center gap-3">
-          <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700 rounded" />
-          <span className="text-sm font-semibold tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap">
-            Simplot Specials
-          </span>
-          <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700 rounded" />
-        </div>
-        {menuStatus === 'loading' && (
-          <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">Loading specials…</div>
-        )}
-        {menuStatus === 'done' && Array.isArray(menuBuckets) && menuBuckets.length > 0 && (
-          <div className="mt-3 space-y-2 sm:space-y-4">
-            {(() => {
-              const labels = menuBuckets.length === 2 ? ['Brunch','Dinner'] : ['Breakfast','Lunch','Dinner'];
-              // Build Grill Special all-day set (keep first seen meta per unique label)
-              const grillMap = new Map(); // normLabel -> { label, description, tags }
-              for (const meal of menuBuckets) {
-                for (const entry of (meal || [])) {
-                  const { label, station, description, tags } = getEntryMeta(entry);
-                  if (String(station || '').toLowerCase().includes('grill special')) {
-                    const norm = String(label || '').trim().toLowerCase();
-                    // Home specials: include only items that have descriptions
-                    if (norm && !grillMap.has(norm) && String(description || '').trim()) {
-                      grillMap.set(norm, { label, description, tags });
-                    }
-                  }
-                }
-              }
+      {/* 2. Quick actions */}
+      {hasSavedCreds && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
+          style={{ display: 'flex', gap: 10, marginBottom: 16 }}
+        >
+          <QuickAction
+            emoji="🍽️"
+            title="What's cookin'?"
+            sub="Today's menu"
+            bg="#FFF1DB"
+            targetTab="menu"
+          />
+          <QuickAction
+            emoji="❤️"
+            title="Your loves"
+            sub={
+              favoritesAvailableToday.length > 0
+                ? `${favoritesAvailableToday.length} on today`
+                : `${lovesSavedCount} saved`
+            }
+            bg="#FFE4EC"
+            targetTab="favorites"
+            highlight={favoritesAvailableToday.length > 0}
+          />
+        </motion.div>
+      )}
 
-              const mealCards = menuBuckets.map((meal, idx) => {
-                const groups = (meal || []).reduce((acc, entry) => {
-                  const { label, station, description, tags } = getEntryMeta(entry);
-                  const key = String(station || 'Other');
-                  const lbl = String(label || '').trim();
-                  if (!lbl) return acc;
-                  const bucket = (acc[key] = acc[key] || []);
-                  // keep insertion order, avoid dups by label
-                  const exists = bucket.some(x => (x?.label || '').toLowerCase() === lbl.toLowerCase());
-                  if (!exists) bucket.push({ label: lbl, description, tags });
-                  return acc;
-                }, {});
-                const byKey = Object.fromEntries(Object.entries(groups).map(([k,v])=>[k.toLowerCase(), v]));
-                const comfortKey = Object.keys(byKey).find(k => k.includes('comfort'));
-                const globalKey = Object.keys(byKey).find(k => k.includes('global'));
-                // Home specials: only include category picks that have descriptions
-                const comfortFirst = comfortKey ? (byKey[comfortKey] || []).find(it => String(it?.description || '').trim()) || null : null;
-                const globalFirst = globalKey ? (byKey[globalKey] || []).find(it => String(it?.description || '').trim()) || null : null;
-                // Skip Breakfast; show Lunch/Dinner (and Brunch/Dinner on weekends)
-                const label = labels[idx] || `Meal ${idx+1}`;
-                const isBreakfast = /breakfast/i.test(label);
-                if (isBreakfast) return null;
-                const picks = [comfortFirst, globalFirst].filter(Boolean);
-                if (picks.length === 0) return null;
-                return (
-                  <div key={`meal-${idx}`} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900/60">
-                    <div className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">{label}</div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 sm:gap-2">
-                      {picks.map((it, i) => (
-                        <div key={`pick-${idx}-${i}`} className="rounded-lg border border-gray-200 p-3 text-sm text-gray-800 dark:text-gray-100 dark:border-gray-700 dark:bg-gray-900/50">
-                          <div className="font-semibold">{it.label}</div>
-                          {(it.description || (it.tags && it.tags.length > 0)) && (
-                            <div className="mt-1">
-                              {it.description && (
-                                <div className="text-xs text-gray-600 dark:text-gray-400">{it.description}</div>
-                              )}
-                              <div className="mt-1 flex flex-wrap gap-1">
-                                {(it.tags || []).map((t) => {
-                                  const s = String(t || '');
-                                  const short = s.toLowerCase().includes('made without gluten-containing ingredients') ? 'GF' : s;
-                                  return (
-                                    <span key={short + s} className="inline-flex items-center px-2 py-0.5 rounded-md border border-gray-200 bg-white text-[11px] text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">{short}</span>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              }).filter(Boolean);
-
-              const grillAll = Array.from(grillMap.values());
-
-              return (
-                <>
-                  {mealCards}
-                  {grillAll.length > 0 && (
-                    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900/60">
-                      <div className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">Grill Special — All Day</div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 sm:gap-2">
-                        {grillAll.map((it, i) => (
-                          <div key={`grill-${i}`} className="rounded-lg border border-gray-200 p-3 text-sm text-gray-800 dark:text-gray-100 dark:border-gray-700 dark:bg-gray-900/50">
-                            <div className="font-semibold">{it.label}</div>
-                            {(it.description || (it.tags && it.tags.length > 0)) && (
-                              <div className="mt-1">
-                                {it.description && (
-                                  <div className="text-xs text-gray-600 dark:text-gray-400">{it.description}</div>
-                                )}
-                                <div className="mt-1 flex flex-wrap gap-1">
-                                  {(it.tags || []).map((t) => {
-                                    const s = String(t || '');
-                                    const short = s.toLowerCase().includes('made without gluten-containing ingredients') ? 'GF' : s;
-                                    return (
-                                      <span key={short + s} className="inline-flex items-center px-2 py-0.5 rounded-md border border-gray-200 bg-white text-[11px] text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">{short}</span>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              );
-            })()}
+      {/* 3. Up next at Simplot */}
+      {hasSavedCreds && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.22, ease: [0.22, 1, 0.36, 1] }}
+          style={{ marginBottom: 16 }}
+        >
+          <div
+            className="uppercase"
+            style={{
+              fontSize: 12, color: 'var(--ink-soft)', fontWeight: 700,
+              letterSpacing: '.08em', padding: '0 4px 8px',
+            }}
+          >
+            Up next at Simplot
           </div>
-        )}
-      </div>
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('yc-goto', { detail: { tab: 'menu' } }))}
+            className="yc-card-soft"
+            style={{
+              width: '100%',
+              background: '#F3E3C6',
+              display: 'flex', gap: 14, alignItems: 'center',
+              cursor: 'pointer', border: 0, textAlign: 'left', fontFamily: 'inherit',
+            }}
+          >
+            <FoodSticker kind={next.meal.kind} size={56} rotate={-6}>
+              {next.meal.emoji}
+            </FoodSticker>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                className="fraunces"
+                style={{ fontSize: 22, fontWeight: 800, color: 'var(--ink)', lineHeight: 1.1 }}
+              >
+                {next.meal.name}
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--ink-soft)', fontWeight: 600, marginTop: 2 }}>
+                {next.tomorrow ? 'Tomorrow · ' : ''}Starts in {formatDelta(next.startsIn)}
+              </div>
+            </div>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 6 L15 12 L9 18" />
+            </svg>
+          </button>
+        </motion.div>
+      )}
 
-      {/* Footer for Balances: small text and sign out above tab bar */}
+      {/* 4. Chef's pick tonight */}
+      {hasSavedCreds && chefPick && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.26, ease: [0.22, 1, 0.36, 1] }}
+          style={{ marginBottom: 16 }}
+        >
+          <div
+            className="uppercase"
+            style={{
+              fontSize: 12, color: 'var(--ink-soft)', fontWeight: 700,
+              letterSpacing: '.08em', padding: '0 4px 8px',
+            }}
+          >
+            Chef's pick tonight
+          </div>
+          <div
+            className="yc-card"
+            style={{ background: 'var(--paper)' }}
+          >
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <div style={{ fontSize: 38, lineHeight: 1, flexShrink: 0 }}>
+                {emojiForLabel(chefPick.label)}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  className="fraunces"
+                  style={{ fontSize: 20, fontWeight: 800, lineHeight: 1.15, color: 'var(--ink)' }}
+                >
+                  {chefPick.label}
+                </div>
+                {chefPick.description && (
+                  <div
+                    style={{
+                      fontSize: 13, color: 'var(--ink-soft)',
+                      marginTop: 4, lineHeight: 1.4,
+                    }}
+                  >
+                    {chefPick.description}
+                  </div>
+                )}
+                {chefPick.tags && chefPick.tags.length > 0 && (
+                  <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+                    {chefPick.tags.map((t) => {
+                      const s = String(t || '');
+                      const short = s.toLowerCase().includes('made without gluten-containing ingredients') ? 'GF' : s;
+                      return (
+                        <span key={short + s} className={'yc-sticker ' + short.toLowerCase()}>
+                          {short}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {hasSavedCreds && menuStatus === 'loading' && !chefPick && (
+        <div style={{ marginBottom: 16, fontSize: 13, color: 'var(--ink-soft)' }}>
+          Loading specials…
+        </div>
+      )}
+
+      {/* Empty-state when logged in but no recognized balance */}
+      {hasSavedCreds && status === 'done' && balances.length === 0 && (
+        <div className="text-center py-8">
+          <div
+            className="yc-card-soft"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 12,
+              background: '#FFE8C4', padding: '14px 18px',
+            }}
+          >
+            <div style={{ fontSize: 28 }}>🤔</div>
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontWeight: 800, color: 'var(--ink)' }}>No balance yet</div>
+              <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+                We couldn't find a Coyote Cash line — try refreshing.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Footer */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-        className="mt-3 sm:mt-6 mb-1 sm:mb-2 flex flex-col items-center gap-1 sm:gap-2"
+        style={{
+          textAlign: 'center',
+          padding: '12px 20px 8px',
+          fontSize: 12,
+          color: 'var(--ink-soft)',
+        }}
       >
-        <p className="text-xs text-gray-600 dark:text-gray-400">Made with ❤️ by Caden Chorlog</p>
-        {hasSavedCreds && (
+        Made with <span style={{ color: 'var(--sunset-deep)' }}>♥</span> by Caden
+      </motion.div>
+      {hasSavedCreds && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 6 }}>
           <button
             onClick={signOut}
-            className="px-3 py-1.5 rounded-lg font-medium border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-xs dark:border-gray-600 dark:bg-gray-900/60 dark:hover:bg-gray-800 dark:text-gray-200"
+            style={{
+              padding: '8px 14px', borderRadius: 12, fontWeight: 700, fontSize: 12,
+              background: 'var(--paper)', color: 'var(--ink)', border: '2px solid var(--ink)',
+              boxShadow: '0 3px 0 rgba(43,24,16,0.2)',
+              cursor: 'pointer',
+            }}
           >
             Sign out
           </button>
-        )}
-      </motion.div>
+        </div>
+      )}
     </motion.section>
+  );
+}
+
+function QuickAction({ emoji, title, sub, bg, targetTab, highlight }) {
+  const handleClick = () => {
+    window.dispatchEvent(new CustomEvent('yc-goto', { detail: { tab: targetTab } }));
+  };
+  return (
+    <motion.button
+      whileTap={{ scale: 0.96 }}
+      whileHover={{ y: -2 }}
+      onClick={handleClick}
+      className="yc-card-soft"
+      style={{
+        flex: 1, background: bg, border: 0, cursor: 'pointer',
+        display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6,
+        padding: 14, textAlign: 'left',
+        boxShadow: highlight
+          ? '0 3px 0 var(--cactus-deep), inset 0 0 0 1.5px var(--cactus-deep)'
+          : undefined,
+      }}
+    >
+      <div style={{ fontSize: 24 }}>{emoji}</div>
+      <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--ink)' }}>{title}</div>
+      <div style={{
+        fontSize: 11,
+        color: highlight ? 'var(--cactus-deep)' : 'var(--ink-soft)',
+        fontWeight: 700,
+      }}>
+        {sub}
+      </div>
+    </motion.button>
   );
 }

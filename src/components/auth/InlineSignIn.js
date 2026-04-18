@@ -1,94 +1,153 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-export default function InlineSignIn({ 
-  username, 
-  password, 
-  setUsername, 
-  setPassword, 
-  status, 
-  error, 
-  handleLogin, 
-  onShowMobileNotice 
+export default function InlineSignIn({
+  username,
+  password,
+  setUsername,
+  setPassword,
+  status,
+  error,
+  handleLogin,
+  onShowMobileNotice,
 }) {
+  const loading = status === 'logging_in' || status === 'loading_more';
+  const inputStyle = {
+    width: '100%',
+    background: 'var(--paper)',
+    border: '2px solid var(--ink)',
+    borderRadius: 16,
+    padding: '14px 16px',
+    fontSize: 16,
+    fontFamily: 'inherit',
+    color: 'var(--ink)',
+    boxShadow: 'inset 0 3px 0 rgba(43,24,16,.06)',
+    outline: 'none',
+  };
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 dark:bg-gray-900/60 dark:border-gray-700">
-      <h2 className="font-semibold text-lg mb-4 text-gray-900 dark:text-gray-100">
-        Sign in to view your account
-      </h2>
-      <form onSubmit={handleLogin} className="space-y-4">
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className="yc-card"
+      style={{ background: 'var(--paper)', marginBottom: 14 }}
+    >
+      <div
+        className="fraunces"
+        style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-.02em', lineHeight: 1 }}
+      >
+        One last thing.
+      </div>
+      <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 8, lineHeight: 1.5 }}>
+        Sign in with your Campus Card account to see your balance and recent munches.
+      </p>
+
+      <form onSubmit={handleLogin} style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div>
-          <label className="text-sm text-gray-700 dark:text-gray-300 font-medium">
-            <span className="block mb-2">Username</span>
-            <input
-              autoComplete="username"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck="false"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              placeholder="Your YoteCard Username"
-              required
-              className="w-full px-4 py-3 rounded-xl bg-white border border-gray-300 outline-none focus:ring-2 focus:ring-[#0A84FF] focus:border-[#0A84FF] transition-all text-gray-900 dark:bg-gray-900/60 dark:border-gray-700 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 dark:focus:ring-[#0A84FF] dark:focus:border-[#0A84FF]"
-            />
+          <label
+            style={{ fontSize: 13, fontWeight: 800, color: 'var(--ink)', marginBottom: 6, display: 'block' }}
+          >
+            Username
           </label>
+          <input
+            autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck="false"
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+            placeholder="your Campus Card handle"
+            required
+            style={inputStyle}
+          />
         </div>
         <div>
-          <label className="text-sm text-gray-700 dark:text-gray-300 font-medium">
-            <span className="block mb-2">Password</span>
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              className="w-full px-4 py-3 rounded-xl bg-white border border-gray-300 outline-none focus:ring-2 focus:ring-[#0A84FF] focus:border-[#0A84FF] transition-all text-gray-900 dark:bg-gray-900/60 dark:border-gray-700 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 dark:focus:ring-[#0A84FF] dark:focus:border-[#0A84FF]"
-            />
+          <label
+            style={{ fontSize: 13, fontWeight: 800, color: 'var(--ink)', marginBottom: 6, display: 'block' }}
+          >
+            Password
           </label>
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="••••••••"
+            required
+            style={inputStyle}
+          />
         </div>
+
         <button
           type="submit"
-          disabled={status === "logging_in" || status === "loading_more"}
-          aria-busy={status === "logging_in" || status === "loading_more"}
-          className="relative w-full inline-flex items-center justify-center px-6 py-3 rounded-xl font-semibold text-white bg-[#0A84FF] hover:bg-[#0077ED] disabled:opacity-70 transition-colors duration-200"
+          disabled={loading}
+          aria-busy={loading}
+          className="yc-btn"
+          style={{ width: '100%', marginTop: 4, opacity: loading ? 0.7 : 1 }}
         >
-          {status === "logging_in" ? (
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              <span>Signing in...</span>
-            </div>
-          ) : (
-            "Sign in"
-          )}
+          {loading ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <span
+                style={{
+                  width: 14, height: 14, borderRadius: '50%',
+                  border: '2px solid #fff', borderTopColor: 'transparent',
+                  display: 'inline-block', animation: 'spin 0.8s linear infinite',
+                }}
+              />
+              Signing in…
+            </span>
+          ) : 'Howl, let me in →'}
         </button>
+
         <button
           type="button"
           onClick={() => {
-            if (window.innerWidth < 768) {
-              onShowMobileNotice?.();
-            } else {
-              window.open('https://cofi.campuscardcenter.com/ch/register/register.html', '_blank');
-            }
+            if (window.innerWidth < 768) onShowMobileNotice?.();
+            else window.open('https://cofi.campuscardcenter.com/ch/register/register.html', '_blank');
           }}
-          className="w-full inline-flex items-center justify-center px-6 py-3 rounded-xl font-semibold border border-gray-300 bg-white hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900/60 dark:hover:bg-gray-800 dark:text-gray-100"
+          style={{
+            width: '100%',
+            padding: '12px 16px', borderRadius: 16,
+            background: 'var(--paper)', color: 'var(--ink)',
+            border: '2px solid var(--ink)', boxShadow: '0 3px 0 rgba(43,24,16,0.2)',
+            fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit',
+          }}
         >
           Sign up
         </button>
-        <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
-          This platform retrieves information from Campus Card Center, the company that provides The College of Idaho with the ID card system.
-        </p>
+
+        <div
+          className="yc-card-soft"
+          style={{
+            background: '#F3E3C6',
+            display: 'flex', gap: 10, alignItems: 'center', padding: '10px 12px',
+          }}
+        >
+          <div style={{ fontSize: 18 }}>🔒</div>
+          <div style={{ fontSize: 11, color: 'var(--ink-soft)', lineHeight: 1.4 }}>
+            We talk to the Campus Card Center that runs your C of I card. We never see your password.
+          </div>
+        </div>
+
         {error && (
           <motion.p
-            initial={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-rose-700 dark:text-rose-300 font-medium text-center p-3 bg-rose-50 border border-rose-200 rounded-xl dark:bg-rose-900/20 dark:border-rose-700"
+            style={{
+              color: '#9B1C1C', fontWeight: 700, textAlign: 'center',
+              padding: 12, background: '#FEE2E2',
+              border: '2px solid #FCA5A5', borderRadius: 14, fontSize: 13,
+            }}
             aria-live="polite"
           >
             {error}
           </motion.p>
         )}
       </form>
-    </div>
+
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
+    </motion.div>
   );
 }

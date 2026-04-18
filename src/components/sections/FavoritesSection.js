@@ -1,33 +1,62 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { IoHeart, IoTrashOutline } from 'react-icons/io5';
+import { motion, AnimatePresence } from 'framer-motion';
+import FoodSticker, { kindFromText } from '../ui/FoodSticker';
 
 export default function FavoritesSection({ favoritesHook, menuBuckets }) {
   const { favorites, removeFavorite } = favoritesHook;
-
-  // Get favorites available today
   const favoritesAvailableToday = favoritesHook.getFavoritesAvailableToday(menuBuckets);
+  const availableIds = new Set(favoritesAvailableToday.map(i => i.favoriteId));
 
-  if (favorites.length === 0) {
+  if (!favorites || favorites.length === 0) {
     return (
       <motion.section
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.55, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.55, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
         className="p-0"
       >
-        <div className="text-center py-12">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-50 border border-red-200 flex items-center justify-center dark:bg-red-900/20 dark:border-red-800">
-            <IoHeart className="w-10 h-10 text-red-500" />
+        <div style={{ textAlign: 'center', padding: '20px 16px 10px' }}>
+          <div className="animate-wobble" style={{ display: 'inline-block' }}>
+            <div
+              style={{
+                width: 140, height: 140, borderRadius: '50%',
+                background: 'radial-gradient(circle,var(--pink) 40%,#FFD9E3 70%,transparent)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto',
+                border: '3px solid var(--ink)', boxShadow: '0 8px 0 var(--ink)',
+              }}
+            >
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="#E44D1F" stroke="#E44D1F" strokeWidth="2" strokeLinejoin="round">
+                <path d="M12 21s-7-4.5-9.5-9C.5 8 3 4 7 4c2 0 3.5 1 5 3 1.5-2 3-3 5-3 4 0 6.5 4 4.5 8-2.5 4.5-9.5 9-9.5 9z" />
+              </svg>
+            </div>
           </div>
-          <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-2">
-            No Favorites Yet
-          </h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-sm mx-auto">
-            Start favoriting your favorite dishes from the menu! Tap the heart icon on any menu item to add it to your favorites.
+          <div
+            className="fraunces"
+            style={{ fontSize: 32, fontWeight: 800, marginTop: 20, letterSpacing: '-.02em' }}
+          >
+            No loves yet!
+          </div>
+          <p
+            style={{
+              fontSize: 14, color: 'var(--ink-soft)', marginTop: 10,
+              lineHeight: 1.5, maxWidth: 300, margin: '10px auto 0',
+            }}
+          >
+            Tap the <span style={{ color: 'var(--sunset-deep)', fontWeight: 800 }}>♥</span> on any menu item to save it.
+            We'll howl at you when your faves hit the menu.
           </p>
-          <div className="text-sm text-gray-500 dark:text-gray-500">
-            💡 Pro tip: When your favorites are available today, you'll get a notification on the home screen!
+          <div
+            className="yc-card"
+            style={{
+              marginTop: 28, background: '#FFF1DB',
+              display: 'flex', gap: 12, alignItems: 'center', textAlign: 'left',
+            }}
+          >
+            <div style={{ fontSize: 28 }}>💡</div>
+            <div style={{ fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.4 }}>
+              <b style={{ color: 'var(--ink)' }}>Pro tip:</b> When a love lands on today's menu, you'll get a push so you never miss it.
+            </div>
           </div>
         </div>
       </motion.section>
@@ -38,73 +67,100 @@ export default function FavoritesSection({ favoritesHook, menuBuckets }) {
     <motion.section
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.55, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.55, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
       className="p-0"
     >
-      {/* Available Today Banner */}
+      {/* Available-today banner */}
       {favoritesAvailableToday.length > 0 && (
-        <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 shadow-sm dark:border-green-800 dark:bg-green-900/20">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center dark:bg-green-800">
-              <IoHeart className="w-4 h-4 text-green-600 dark:text-green-400" />
+        <motion.div
+          layout
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="yc-card"
+          style={{
+            background: '#D4F4D8', borderColor: 'var(--cactus-deep)',
+            boxShadow: '0 5px 0 var(--cactus-deep)',
+            marginBottom: 14, display: 'flex', gap: 12, alignItems: 'center',
+          }}
+        >
+          <div className="animate-float" style={{ fontSize: 36 }}>🎉</div>
+          <div style={{ flex: 1 }}>
+            <div
+              className="fraunces"
+              style={{ fontSize: 18, fontWeight: 800, color: 'var(--cactus-deep)', lineHeight: 1.1 }}
+            >
+              Your loves are on today!
             </div>
-            <div>
-              <div className="text-sm font-semibold text-green-800 dark:text-green-200">
-                🎉 Your favorites are available today!
-              </div>
-              <div className="text-xs text-green-600 dark:text-green-400">
-                {favoritesAvailableToday.length} of your favorites are on today's menu
-              </div>
+            <div style={{ fontSize: 12, color: 'var(--cactus-deep)', opacity: 0.85, marginTop: 2 }}>
+              {favoritesAvailableToday.length} of your favorites are being served
             </div>
           </div>
-        </div>
+        </motion.div>
       )}
 
-
-      {/* Favorites List */}
-      <div className="space-y-3">
-        {favorites.map((favorite) => {
-          const isAvailableToday = favoritesAvailableToday.some(
-            item => item.favoriteId === favorite.id
-          );
-          
-          return (
-            <motion.div
-              key={favorite.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900/60"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">
+      {/* List */}
+      <AnimatePresence>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {favorites.map((favorite, i) => {
+            const isToday = availableIds.has(favorite.id);
+            const kind = kindFromText(favorite.category);
+            return (
+              <motion.div
+                key={favorite.id}
+                layout
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8, transition: { duration: 0.2 } }}
+                transition={{ duration: 0.4, delay: i * 0.04, ease: [0.22, 1, 0.36, 1] }}
+                className="yc-card"
+                style={{ background: 'var(--paper)', display: 'flex', gap: 12, alignItems: 'flex-start' }}
+              >
+                <FoodSticker kind={kind} size={48} rotate={-6} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 11, color: 'var(--sunset-deep)', fontWeight: 800,
+                      textTransform: 'uppercase', letterSpacing: '.08em',
+                    }}
+                  >
+                    Simplot · {favorite.category}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center',
+                      marginTop: 2,
+                    }}
+                  >
+                    <div
+                      className="fraunces"
+                      style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.2, color: 'var(--ink)' }}
+                    >
                       {favorite.label}
-                    </h3>
-                    {isAvailableToday && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                        Available Today
-                      </span>
+                    </div>
+                    {isToday && (
+                      <motion.span
+                        initial={{ scale: 0.6, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                        className="yc-sticker veg"
+                        style={{ fontSize: 10 }}
+                      >
+                        on today
+                      </motion.span>
                     )}
                   </div>
                   {favorite.description && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                    <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 4, lineHeight: 1.4 }}>
                       {favorite.description}
-                    </p>
+                    </div>
                   )}
-                  <div className="text-xs text-gray-500 dark:text-gray-500">
-                    {favorite.category}
-                  </div>
                   {favorite.tags && favorite.tags.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {favorite.tags.map((tag, idx) => {
-                        const s = String(tag || '');
+                    <div style={{ display: 'flex', gap: 5, marginTop: 8, flexWrap: 'wrap' }}>
+                      {favorite.tags.map((t, idx) => {
+                        const s = String(t || '');
                         const short = s.toLowerCase().includes('made without gluten-containing ingredients') ? 'GF' : s;
                         return (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center px-2 py-0.5 rounded-md border border-gray-200 bg-white text-[11px] text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                          >
+                          <span key={idx} className={'yc-sticker ' + short.toLowerCase()}>
                             {short}
                           </span>
                         );
@@ -113,18 +169,20 @@ export default function FavoritesSection({ favoritesHook, menuBuckets }) {
                   )}
                 </div>
                 <button
+                  className="yc-heart-btn favved"
                   onClick={() => removeFavorite(favorite.id)}
-                  className="flex-shrink-0 p-2 rounded-full text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors dark:hover:bg-red-900/20"
-                  title="Remove from favorites"
+                  title="Remove"
+                  aria-label="Remove from favorites"
                 >
-                  <IoTrashOutline className="w-4 h-4" />
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="#FF6A3D" stroke="#FF6A3D" strokeWidth="2" strokeLinejoin="round">
+                    <path d="M12 21s-7-4.5-9.5-9C.5 8 3 4 7 4c2 0 3.5 1 5 3 1.5-2 3-3 5-3 4 0 6.5 4 4.5 8-2.5 4.5-9.5 9-9.5 9z" />
+                  </svg>
                 </button>
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
-
+              </motion.div>
+            );
+          })}
+        </div>
+      </AnimatePresence>
     </motion.section>
   );
 }
