@@ -21,6 +21,11 @@
 
 html, body, #root {
   min-height: 100vh;
+  min-height: 100dvh;
+}
+
+html {
+  background: #F5EAD3;
 }
 
 body {
@@ -29,15 +34,21 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: var(--ink);
+  background: #F5EAD3 !important;
+}
+
+/* Gradient lives on a fixed layer so it extends behind the iOS status bar
+   (status-bar-style: black-translucent) and the iPhone home-indicator area. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background:
     radial-gradient(ellipse 900px 500px at 15% -5%, #FFD9A8 0%, transparent 55%),
     radial-gradient(ellipse 700px 600px at 95% 105%, #FFBBC8 0%, transparent 55%),
-    #F5EAD3 !important;
-  background-attachment: fixed;
-}
-
-html {
-  background: #F5EAD3;
+    #F5EAD3;
 }
 
 #root {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import FoodSticker, { kindFromText } from '../ui/FoodSticker';
+import FoodSticker, { kindFromText, emojiForItem } from '../ui/FoodSticker';
 
 export default function FavoritesSection({ favoritesHook, menuBuckets }) {
   const { favorites, removeFavorite } = favoritesHook;
@@ -104,6 +104,7 @@ export default function FavoritesSection({ favoritesHook, menuBuckets }) {
           {favorites.map((favorite, i) => {
             const isToday = availableIds.has(favorite.id);
             const kind = kindFromText(favorite.category);
+            const itemEmoji = emojiForItem(favorite.label, favorite.tags);
             return (
               <motion.div
                 key={favorite.id}
@@ -115,7 +116,7 @@ export default function FavoritesSection({ favoritesHook, menuBuckets }) {
                 className="yc-card"
                 style={{ background: 'var(--paper)', display: 'flex', gap: 12, alignItems: 'flex-start' }}
               >
-                <FoodSticker kind={kind} size={48} rotate={-6} />
+                <FoodSticker kind={kind} size={48} rotate={-6}>{itemEmoji}</FoodSticker>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{

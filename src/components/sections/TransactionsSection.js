@@ -14,7 +14,7 @@ function emojiForDescription(desc) {
   const s = String(desc || '').toLowerCase();
   if (s.includes('reload') || s.includes('addvalue') || s.includes('deposit')) return '💰';
   if (s.includes('adj')) return '🧾';
-  if (s.includes('den')) return '🍔';
+  if (s.includes('den')) return '🍿';
   if (s.includes('simplot')) return '🍽️';
   if (s.includes('mccain')) return '🥪';
   if (s.includes('coffee') || s.includes('jewetts')) return '☕';

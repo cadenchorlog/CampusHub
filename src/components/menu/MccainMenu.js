@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import FoodSticker, { kindFromText } from '../ui/FoodSticker';
+import FoodSticker, { kindFromText, emojiForItem } from '../ui/FoodSticker';
 
 const MCCAIN_MENU = {
   categories: [
@@ -75,29 +75,6 @@ const MCCAIN_MENU = {
     },
   ],
 };
-
-function guessEmoji(name) {
-  const t = String(name || '').toLowerCase();
-  if (t.includes('pita') || t.includes('quesadilla')) return '🫓';
-  if (t.includes('hummus')) return '🫛';
-  if (t.includes('mozz') || t.includes('cheese')) return '🧀';
-  if (t.includes('quinoa') || t.includes('farro') || t.includes('rice')) return '🌾';
-  if (t.includes('caesar') || t.includes('salad')) return '🥗';
-  if (t.includes('burger')) return '🍔';
-  if (t.includes('wing')) return '🍗';
-  if (t.includes('chicken')) return '🍗';
-  if (t.includes('beef') || t.includes('western')) return '🥩';
-  if (t.includes('tuna') || t.includes('seafood')) return '🐟';
-  if (t.includes('wrap')) return '🌯';
-  if (t.includes('pasta') || t.includes('alfredo')) return '🍝';
-  if (t.includes('fritter')) return '🍤';
-  if (t.includes('soda')) return '🥤';
-  if (t.includes('chocolate')) return '🍫';
-  if (t.includes('espresso') || t.includes('shot') || t.includes('americano')) return '☕';
-  if (t.includes('coffee') || t.includes('latte') || t.includes('mocha') || t.includes('breve') || t.includes('cappuccino') || t.includes('chai')) return '☕';
-  if (t.includes('syrup')) return '🍯';
-  return '🍽️';
-}
 
 export default function MccainMenu() {
   const categories = MCCAIN_MENU.categories;
@@ -211,7 +188,7 @@ export default function MccainMenu() {
                         const sizes = hasSizes ? Object.keys(it.sizes) : [];
                         const choice = hasSizes ? (sizeChoice[it.name] || sizes[0]) : null;
                         const price = hasSizes ? (it.sizes[choice] || '') : (it.price || '');
-                        const emoji = guessEmoji(it.name);
+                        const emoji = emojiForItem(it.name, it.tags);
                         return (
                           <motion.div
                             layout

@@ -8,7 +8,7 @@ import {
   DINNER_START, DINNER_END,
 } from '../utils/constants';
 import InlineSignIn from '../auth/InlineSignIn';
-import FoodSticker from '../ui/FoodSticker';
+import FoodSticker, { emojiForItem } from '../ui/FoodSticker';
 
 function parseAmount(str) {
   if (typeof str === 'number') return str;
@@ -87,26 +87,6 @@ function pickChefPick(menuBuckets, getEntryMeta) {
     if (best && best._rank === 0) break;
   }
   return best;
-}
-
-function emojiForLabel(text) {
-  const t = String(text || '').toLowerCase();
-  if (t.includes('pizza')) return '🍕';
-  if (t.includes('burger')) return '🍔';
-  if (t.includes('taco')) return '🌮';
-  if (t.includes('salad')) return '🥗';
-  if (t.includes('chicken')) return '🍗';
-  if (t.includes('rib') || t.includes('beef') || t.includes('steak')) return '🍖';
-  if (t.includes('tofu') || t.includes('butter')) return '🧈';
-  if (t.includes('soup') || t.includes('chowder')) return '🍲';
-  if (t.includes('fries') || t.includes('fry')) return '🍟';
-  if (t.includes('cheese')) return '🧀';
-  if (t.includes('rice') || t.includes('quinoa') || t.includes('farro')) return '🌾';
-  if (t.includes('carrot') || t.includes('root') || t.includes('veggie')) return '🥕';
-  if (t.includes('fish') || t.includes('salmon')) return '🐟';
-  if (t.includes('pancake') || t.includes('waffle')) return '🥞';
-  if (t.includes('egg')) return '🍳';
-  return '🍽️';
 }
 
 export default function BalancesSection({
@@ -371,7 +351,7 @@ export default function BalancesSection({
           >
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
               <div style={{ fontSize: 38, lineHeight: 1, flexShrink: 0 }}>
-                {emojiForLabel(chefPick.label)}
+                {emojiForItem(chefPick.label, chefPick.tags)}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div

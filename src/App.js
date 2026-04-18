@@ -318,7 +318,10 @@ export default function App() {
         className="min-h-screen relative overflow-x-hidden"
         style={{ color: 'var(--ink)' }}
       >
-      <div className="max-w-3xl mx-auto p-6 pb-32 relative z-10">
+      <div
+        className="max-w-3xl mx-auto px-6 pb-32 relative z-10"
+        style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))' }}
+      >
           <Header
             headerTitle={headerTitle}
             headerSubtitle={headerSubtitle}

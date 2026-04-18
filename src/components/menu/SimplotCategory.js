@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import FoodSticker, { kindFromText } from '../ui/FoodSticker';
+import FoodSticker, { kindFromText, emojiForItem } from '../ui/FoodSticker';
 import { burstFromEvent } from '../ui/confetti';
 
 export default function SimplotCategory({ name, items, defaultOpen = false, favoritesHook }) {
@@ -106,25 +106,7 @@ export default function SimplotCategory({ name, items, defaultOpen = false, favo
 }
 
 function MenuItemRow({ item, faved, onFav }) {
-  // Guess emoji from name
-  const txt = String(item.label || '').toLowerCase();
-  let emoji = '🍽️';
-  if (txt.includes('pizza')) emoji = '🍕';
-  else if (txt.includes('burger')) emoji = '🍔';
-  else if (txt.includes('taco')) emoji = '🌮';
-  else if (txt.includes('salad')) emoji = '🥗';
-  else if (txt.includes('rice') || txt.includes('quinoa') || txt.includes('farro')) emoji = '🌾';
-  else if (txt.includes('chicken')) emoji = '🍗';
-  else if (txt.includes('beef') || txt.includes('rib') || txt.includes('steak')) emoji = '🍖';
-  else if (txt.includes('tofu') || txt.includes('butter')) emoji = '🧈';
-  else if (txt.includes('soup') || txt.includes('chowder')) emoji = '🍲';
-  else if (txt.includes('fries') || txt.includes('fry')) emoji = '🍟';
-  else if (txt.includes('cheese')) emoji = '🧀';
-  else if (txt.includes('cookie') || txt.includes('cake') || txt.includes('dessert')) emoji = '🍰';
-  else if (txt.includes('egg')) emoji = '🍳';
-  else if (txt.includes('vege') || txt.includes('veggie') || txt.includes('carrot') || txt.includes('root')) emoji = '🥕';
-  else if (txt.includes('fish') || txt.includes('salmon')) emoji = '🐟';
-  else if (txt.includes('pancake') || txt.includes('waffle')) emoji = '🥞';
+  const emoji = emojiForItem(item.label, item.tags);
 
   return (
     <motion.div
