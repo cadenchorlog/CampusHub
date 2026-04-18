@@ -1,95 +1,192 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import FoodSticker, { kindFromText } from '../ui/FoodSticker';
+import { burstFromEvent } from '../ui/confetti';
 
 export default function SimplotCategory({ name, items, defaultOpen = false, favoritesHook }) {
   const [open, setOpen] = useState(!!defaultOpen);
-  
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden dark:border-gray-700 dark:bg-gray-900/60">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 text-left dark:bg-gray-800/60 dark:hover:bg-gray-800"
-        aria-expanded={open}
-      >
-        <div>
-          <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">{name}</div>
-          <div className="text-xs text-gray-500 dark:text-gray-400">{items.length} item{items.length === 1 ? '' : 's'}</div>
-        </div>
-        <svg className={`w-4 h-4 text-gray-600 dark:text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-      </button>
-      {open && (
-        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {items.length === 0 ? (
-            <p className="text-sm text-gray-600 dark:text-gray-400">No items.</p>
-          ) : (
-            (() => {
-              // Normalize and stably sort: items with descriptions first
-              const normalized = items.map((it, idx) => {
-                const label = typeof it === 'string' ? it : (it?.label || '');
-                const description = typeof it === 'object' ? (it?.description || '') : '';
-                const tags = typeof it === 'object' && Array.isArray(it?.tags) ? it.tags : [];
-                return { label, description, tags, _i: idx };
-              });
-              const withDesc = normalized.filter(x => String(x.description || '').trim());
-              const withoutDesc = normalized.filter(x => !String(x.description || '').trim());
-              const itemsSorted = withDesc.concat(withoutDesc);
-              return itemsSorted.map((it, idx) => {
-                const isFavorited = favoritesHook?.isFavorited?.(it) || false;
-                const itemData = {
-                  id: `${name}-${it.label}-${it._i}`,
-                  label: it.label,
-                  description: it.description,
-                  tags: it.tags,
-                  category: name
-                };
+  const kind = kindFromText(name);
 
-                return (
-                  <React.Fragment key={name + it.label + it._i}>
-                    <div className="rounded-lg border border-gray-200 p-3 hover:bg-gray-50 transition-colors dark:border-gray-700 dark:bg-gray-900/50 dark:hover:bg-gray-900/60">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">{it.label}</div>
-                          {it.description && (
-                            <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">{it.description}</div>
-                          )}
-                          {it.tags.length > 0 && (
-                            <div className="mt-1 flex flex-wrap gap-1">
-                              {it.tags.map((t) => {
-                                const s = String(t || '');
-                                const short = s.toLowerCase().includes('made without gluten-containing ingredients') ? 'GF' : s;
-                                return (
-                                  <span key={short + s} className="inline-flex items-center px-2 py-0.5 rounded-md border border-gray-200 bg-white text-[11px] text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">{short}</span>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                        {favoritesHook && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              favoritesHook.toggleFavorite(itemData);
-                            }}
-                            className={`flex-shrink-0 p-1.5 rounded-full transition-colors ${
-                              isFavorited 
-                                ? 'text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30' 
-                                : 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'
-                            }`}
-                            title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
-                          >
-                            <svg className="w-4 h-4" fill={isFavorited ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                            </svg>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </React.Fragment>
-                );
-              });
-            })()
-          )}
+  return (
+    <motion.div
+      layout
+      className="yc-card-soft"
+      style={{ padding: 0, background: open ? 'var(--paper)' : '#F3E3C6', overflow: 'hidden' }}
+    >
+      <motion.button
+        whileTap={{ scale: 0.98 }}
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        style={{
+          width: '100%', border: 0, background: 'transparent', cursor: 'pointer',
+          padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12,
+          textAlign: 'left', fontFamily: 'inherit',
+        }}
+      >
+        <FoodSticker kind={kind} size={40} rotate={-6} />
+        <div style={{ flex: 1 }}>
+          <div
+            className="fraunces"
+            style={{ fontSize: 19, fontWeight: 800, color: 'var(--ink)', lineHeight: 1.1 }}
+          >
+            {name}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 600 }}>
+            {items.length} item{items.length === 1 ? '' : 's'}
+          </div>
         </div>
-      )}
-    </div>
+        <motion.div
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 9 L12 15 L18 9" />
+          </svg>
+        </motion.div>
+      </motion.button>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="content"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {items.length === 0 ? (
+                <p
+                  style={{
+                    padding: '4px 6px 10px',
+                    fontSize: 13, color: 'var(--ink-soft)', fontStyle: 'italic',
+                  }}
+                >
+                  Menu coming soon — check back closer to mealtime 🐾
+                </p>
+              ) : (() => {
+                const normalized = items.map((it, idx) => {
+                  const label = typeof it === 'string' ? it : (it?.label || '');
+                  const description = typeof it === 'object' ? (it?.description || '') : '';
+                  const tags = typeof it === 'object' && Array.isArray(it?.tags) ? it.tags : [];
+                  return { label, description, tags, _i: idx };
+                });
+                const withDesc = normalized.filter(x => String(x.description || '').trim());
+                const withoutDesc = normalized.filter(x => !String(x.description || '').trim());
+                return withDesc.concat(withoutDesc).map((it, idx) => {
+                  const itemData = {
+                    id: `${name}-${it.label}-${it._i}`,
+                    label: it.label,
+                    description: it.description,
+                    tags: it.tags,
+                    category: name,
+                  };
+                  const faved = favoritesHook?.isFavorited?.(itemData) || false;
+                  return (
+                    <MenuItemRow
+                      key={name + it.label + it._i}
+                      item={it}
+                      faved={faved}
+                      onFav={(e) => {
+                        e.stopPropagation();
+                        if (!faved) burstFromEvent(e);
+                        favoritesHook?.toggleFavorite(itemData);
+                      }}
+                    />
+                  );
+                });
+              })()}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+function MenuItemRow({ item, faved, onFav }) {
+  // Guess emoji from name
+  const txt = String(item.label || '').toLowerCase();
+  let emoji = '🍽️';
+  if (txt.includes('pizza')) emoji = '🍕';
+  else if (txt.includes('burger')) emoji = '🍔';
+  else if (txt.includes('taco')) emoji = '🌮';
+  else if (txt.includes('salad')) emoji = '🥗';
+  else if (txt.includes('rice') || txt.includes('quinoa') || txt.includes('farro')) emoji = '🌾';
+  else if (txt.includes('chicken')) emoji = '🍗';
+  else if (txt.includes('beef') || txt.includes('rib') || txt.includes('steak')) emoji = '🍖';
+  else if (txt.includes('tofu') || txt.includes('butter')) emoji = '🧈';
+  else if (txt.includes('soup') || txt.includes('chowder')) emoji = '🍲';
+  else if (txt.includes('fries') || txt.includes('fry')) emoji = '🍟';
+  else if (txt.includes('cheese')) emoji = '🧀';
+  else if (txt.includes('cookie') || txt.includes('cake') || txt.includes('dessert')) emoji = '🍰';
+  else if (txt.includes('egg')) emoji = '🍳';
+  else if (txt.includes('vege') || txt.includes('veggie') || txt.includes('carrot') || txt.includes('root')) emoji = '🥕';
+  else if (txt.includes('fish') || txt.includes('salmon')) emoji = '🐟';
+  else if (txt.includes('pancake') || txt.includes('waffle')) emoji = '🥞';
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      style={{
+        background: '#FFF8EA', borderRadius: 16, padding: '12px 14px',
+        display: 'flex', gap: 12, alignItems: 'flex-start',
+        border: '1.5px solid rgba(43,24,16,0.08)',
+      }}
+    >
+      <div style={{ fontSize: 30, lineHeight: 1, transform: 'rotate(-6deg)', flexShrink: 0 }}>
+        {emoji}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontWeight: 800, fontSize: 14.5, color: 'var(--ink)', lineHeight: 1.25,
+          }}
+        >
+          {item.label}
+        </div>
+        {item.description && (
+          <div
+            style={{
+              fontSize: 12, color: 'var(--ink-soft)', marginTop: 3, lineHeight: 1.35,
+            }}
+          >
+            {item.description}
+          </div>
+        )}
+        {item.tags && item.tags.length > 0 && (
+          <div style={{ display: 'flex', gap: 5, marginTop: 6, flexWrap: 'wrap' }}>
+            {item.tags.map((t) => {
+              const s = String(t || '');
+              const short = s.toLowerCase().includes('made without gluten-containing ingredients') ? 'GF' : s;
+              const cls = short.toLowerCase();
+              return (
+                <span key={short + s} className={'yc-sticker ' + cls}>
+                  {short}
+                </span>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      <button
+        className={'yc-heart-btn' + (faved ? ' favved' : '')}
+        onClick={onFav}
+        title={faved ? 'Remove from favorites' : 'Add to favorites'}
+        aria-pressed={faved}
+      >
+        <svg
+          width="26" height="26" viewBox="0 0 24 24"
+          fill={faved ? '#FF6A3D' : 'none'}
+          stroke={faved ? '#FF6A3D' : '#C9B39B'}
+          strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
+        >
+          <path d="M12 21s-7-4.5-9.5-9C.5 8 3 4 7 4c2 0 3.5 1 5 3 1.5-2 3-3 5-3 4 0 6.5 4 4.5 8-2.5 4.5-9.5 9-9.5 9z" />
+        </svg>
+      </button>
+    </motion.div>
   );
 }

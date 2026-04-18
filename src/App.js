@@ -117,11 +117,11 @@ export default function App() {
       case "balances":
         return { title: dateTitle, subtitle: dateSubtitle };
       case "transactions":
-        return { title: "Transactions", subtitle: "Your recent activity" };
+        return { title: "Activity", subtitle: "" };
       case "menu":
-        return { title: "Menu", subtitle: "Today's specials" };
+        return { title: "Menu", subtitle: "" };
       case "favorites":
-        return { title: "Favorites", subtitle: "Your saved dishes" };
+        return { title: "Loves", subtitle: "" };
       default:
         return { title: dateTitle, subtitle: dateSubtitle };
     }
@@ -301,11 +301,24 @@ export default function App() {
     };
   }, []);
 
+  // Quick-action cross-tab navigation from BalancesSection
+  useEffect(() => {
+    const handler = (e) => {
+      const t = e?.detail?.tab;
+      if (t) setActiveTab(t);
+    };
+    window.addEventListener('yc-goto', handler);
+    return () => window.removeEventListener('yc-goto', handler);
+  }, []);
+
   return (
     <MotionConfig transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>
       <Analytics/>
-      <div className="min-h-screen relative overflow-x-hidden text-gray-800 bg-white dark:bg-[#0b0b0f] dark:text-gray-100">
-      <div className="max-w-3xl mx-auto p-6 pb-28 relative z-10">
+      <div
+        className="min-h-screen relative overflow-x-hidden"
+        style={{ color: 'var(--ink)' }}
+      >
+      <div className="max-w-3xl mx-auto p-6 pb-32 relative z-10">
           <Header
             headerTitle={headerTitle}
             headerSubtitle={headerSubtitle}
@@ -397,15 +410,17 @@ export default function App() {
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: 40, opacity: 0 }}
                 transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-                className="mx-4 mb-[max(1rem,env(safe-area-inset-bottom))] sm:mx-0 sm:mb-0 max-w-md w-full rounded-2xl border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-900/70"
+                className="mx-4 mb-[max(1rem,env(safe-area-inset-bottom))] sm:mx-0 sm:mb-0 max-w-md w-full yc-card"
+                style={{ background: 'var(--paper)' }}
               >
-                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Sign up on desktop</h3>
-              <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+                <h3 className="fraunces" style={{ fontSize: 22, fontWeight: 800, color: 'var(--ink)', margin: 0 }}>Sign up on desktop</h3>
+              <p style={{ color: 'var(--ink-soft)', fontSize: 13, margin: '8px 0 14px', lineHeight: 1.45 }}>
                 You cannot sign up for an account on the app. Visit yotecard.cadenchorlog.com on a laptop to sign up.
               </p>
               <button
                 onClick={() => setShowMobileNotice(false)}
-                className="mt-2 px-4 py-2 rounded-xl font-semibold border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 transition-colors dark:border-gray-600 dark:bg-gray-900/60 dark:hover:bg-gray-800 dark:text-gray-200"
+                className="yc-btn yc-btn-ink"
+                style={{ padding: '10px 14px', fontSize: 13 }}
               >
                 Got it
               </button>

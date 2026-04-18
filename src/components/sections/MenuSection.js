@@ -1,20 +1,21 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { formatDelta } from '../utils/helpers';
-import { 
-  BREAKFAST_END, 
-  LUNCH_END, 
-  BRUNCH_END, 
-  BREAKFAST_START, 
-  LUNCH_START, 
-  BRUNCH_START, 
-  DINNER_START, 
-  DINNER_END, 
-  DEN_CLOSE, 
-  CLOSE_TIME 
+import {
+  BREAKFAST_END,
+  LUNCH_END,
+  BRUNCH_END,
+  BREAKFAST_START,
+  LUNCH_START,
+  BRUNCH_START,
+  DINNER_START,
+  DINNER_END,
+  DEN_CLOSE,
+  CLOSE_TIME
 } from '../utils/constants';
 import MccainMenu from '../menu/MccainMenu';
 import SimplotCategory from '../menu/SimplotCategory';
+import FoodSticker, { kindFromText } from '../ui/FoodSticker';
 
 export default function MenuSection({
   menuVendor,
@@ -45,27 +46,26 @@ export default function MenuSection({
         transition={{ duration: 0.55, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
         className="p-0"
       >
-        <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800/60">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                On-campus dining is closed for the evening
+        <div className="yc-card" style={{ background: 'var(--ink)', color: '#fff', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="animate-float" style={{ fontSize: 42 }}>🌙</div>
+            <div style={{ flex: 1 }}>
+              <div className="fraunces" style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.1 }}>
+                The kitchen's asleep
               </div>
-              <div className="text-xs text-gray-600 dark:text-gray-400">
+              <div style={{ fontSize: 13, opacity: 0.8, marginTop: 4 }}>
                 {isAfter10 ? "It's late — try again tomorrow." : "The Den is open until 10 PM for grab-and-go."}
               </div>
             </div>
-            <div className="w-8 h-8 rounded-full border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/40 flex items-center justify-center">
-              <span role="img" aria-label="moon" className="text-base">🌙</span>
-            </div>
           </div>
-          <div className="mt-3">
+          <div style={{ marginTop: 14 }}>
             <button
               type="button"
               onClick={() => setViewAfterHours(true)}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 dark:border-gray-600 dark:bg-gray-900/60 dark:hover:bg-gray-800 dark:text-gray-200"
+              className="yc-btn"
+              style={{ padding: '10px 14px', fontSize: 13 }}
             >
-              View Menu
+              Peek the menu anyway
             </button>
           </div>
         </div>
@@ -85,12 +85,8 @@ export default function MenuSection({
       >
         {menuStatus === "error" && (
           <div className="text-center py-8">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center">
-              <svg className="w-8 h-8 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
-            </div>
-            <p className="text-gray-700">{menuError || "Could not load menu"}</p>
+            <div className="animate-wobble" style={{ display: 'inline-block', fontSize: 64, marginBottom: 12 }}>🫠</div>
+            <p style={{ color: 'var(--ink-soft)', fontWeight: 700 }}>{menuError || "Could not load menu"}</p>
           </div>
         )}
 
@@ -173,16 +169,12 @@ export default function MenuSection({
                   const labelText = label || `Meal ${idx+1}`;
                   const s = String(labelText).toLowerCase();
                   let emoji = '🥪';
-                  let iconBg = 'bg-gray-50 border-gray-200';
                   if (s.includes('breakfast') || s.includes('brunch')) {
                     emoji = '🍳';
-                    iconBg = 'bg-amber-50 border-amber-200';
                   } else if (s.includes('lunch')) {
                     emoji = '🥪';
-                    iconBg = 'bg-emerald-50 border-emerald-200';
                   } else if (s.includes('dinner')) {
                     emoji = '🍗';
-                    iconBg = 'bg-indigo-50 border-indigo-200';
                   }
                   
                   // Compute countdown text: Starts in __ or Ends in __
@@ -243,18 +235,58 @@ export default function MenuSection({
                     return String(a[0]).localeCompare(String(b[0]));
                   });
 
+                  const isServingNow = idx === currentIdx && (
+                    (labels.length === 2 && minutes2 <= BRUNCH_END) ||
+                    (labels.length === 3 && (
+                      (idx === 0 && minutes2 <= BREAKFAST_END) ||
+                      (idx === 1 && minutes2 > BREAKFAST_END && minutes2 <= LUNCH_END) ||
+                      (idx === 2 && minutes2 > LUNCH_END)
+                    ))
+                  );
                   return (
-                    <div key={idx} className="space-y-3">
-                      {/* Meal period header */}
-                      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900/60">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full border flex items-center justify-center ${iconBg} dark:border-gray-600 dark:bg-gray-800`}>
-                            <span className="text-lg">{emoji}</span>
-                          </div>
-                          <div className="flex-1">
-                            <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">{labelText}</div>
+                    <motion.div
+                      key={idx}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: idx * 0.08, ease: [0.22, 1, 0.36, 1] }}
+                      className="space-y-3"
+                    >
+                      {/* Meal period header — playful card */}
+                      <div
+                        className="yc-card"
+                        style={{
+                          background: isServingNow ? 'var(--sunset)' : 'var(--paper)',
+                          color: isServingNow ? '#fff' : 'var(--ink)',
+                          borderColor: 'var(--ink)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                          <FoodSticker kind={kindFromText(labelText)} size={56} rotate={-6}>{emoji}</FoodSticker>
+                          <div style={{ flex: 1 }}>
+                            {isServingNow && (
+                              <div
+                                style={{
+                                  fontSize: 11, fontWeight: 800, letterSpacing: '.12em',
+                                  textTransform: 'uppercase', opacity: 0.95,
+                                }}
+                              >
+                                Serving now
+                              </div>
+                            )}
+                            <div
+                              className="fraunces"
+                              style={{ fontSize: 26, fontWeight: 800, lineHeight: 1 }}
+                            >
+                              {labelText}
+                            </div>
                             {countdownText && (
-                              <div className="text-sm text-gray-600 dark:text-gray-400">{countdownText}</div>
+                              <div style={{
+                                fontSize: 13, fontWeight: 700, marginTop: 4,
+                                opacity: isServingNow ? 0.95 : 0.8,
+                                color: isServingNow ? '#fff' : 'var(--ink-soft)',
+                              }}>
+                                ⏰ {countdownText}
+                              </div>
                             )}
                           </div>
                         </div>
@@ -262,19 +294,21 @@ export default function MenuSection({
 
                       {/* Categories for this meal */}
                       {entries.length === 0 ? (
-                        <p className="text-gray-600">No items listed.</p>
+                        <p style={{ color: 'var(--ink-soft)', fontSize: 13, fontStyle: 'italic', padding: '0 4px' }}>
+                          No items listed.
+                        </p>
                       ) : (
                         entries.map(([catName, items]) => (
-                          <SimplotCategory 
-                            key={`${catName}-${idx}`} 
-                            name={catName} 
-                            items={items} 
+                          <SimplotCategory
+                            key={`${catName}-${idx}`}
+                            name={catName}
+                            items={items}
                             defaultOpen={shouldDefaultOpen(catName)}
                             favoritesHook={favoritesHook}
                           />
                         ))
                       )}
-                    </div>
+                    </motion.div>
                   );
                 });
             })()}
@@ -294,19 +328,20 @@ export default function MenuSection({
     >
       {menuStatus === "error" && (
         <div className="text-center py-8">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center">
-            <svg className="w-8 h-8 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
-          </div>
-          <p className="text-gray-700">{menuError || "Could not load menu"}</p>
+          <div className="animate-wobble" style={{ display: 'inline-block', fontSize: 64, marginBottom: 12 }}>🫠</div>
+          <p style={{ color: 'var(--ink-soft)', fontWeight: 700 }}>{menuError || "Could not load menu"}</p>
         </div>
       )}
       {menuStatus === "loading" && (
         <div className="text-center py-8">
-          <div className="inline-flex items-center gap-3">
-            <div className="w-6 h-6 rounded-full border-2 border-gray-300 border-t-[#0A84FF] animate-spin" />
-            <span className="text-gray-700 font-medium">Loading menu...</span>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+            <span
+              className="animate-float"
+              style={{ fontSize: 32, display: 'inline-block' }}
+            >
+              🍳
+            </span>
+            <span style={{ color: 'var(--ink-soft)', fontWeight: 700 }}>Warming up the grill…</span>
           </div>
         </div>
       )}
