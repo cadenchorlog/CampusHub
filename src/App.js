@@ -311,6 +311,11 @@ export default function App() {
     return () => window.removeEventListener('yc-goto', handler);
   }, []);
 
+  // Scroll to top whenever the active tab changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [activeTab]);
+
   return (
     <MotionConfig transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>
       <Analytics/>
