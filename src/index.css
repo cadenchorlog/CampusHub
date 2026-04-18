@@ -37,18 +37,15 @@ body {
   background: #F5EAD3 !important;
 }
 
-/* Gradient lives on a fixed layer so it extends behind the iOS status bar
-   (status-bar-style: black-translucent) and the iPhone home-indicator area. */
+/* Fixed cream layer so iOS PWA rubber-band overscroll (top / status bar
+   and bottom / home indicator) still reveals the same color, never a seam. */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse 900px 500px at 15% -5%, #FFD9A8 0%, transparent 55%),
-    radial-gradient(ellipse 700px 600px at 95% 105%, #FFBBC8 0%, transparent 55%),
-    #F5EAD3;
+  background: #F5EAD3;
 }
 
 #root {
